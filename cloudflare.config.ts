@@ -4,5 +4,6 @@ export default {
     name: "arc",
     compatibilityDate: "2026-11-13",
     assets: { notFoundHandling: "single-page-application" },
+    domains: ["arcteams.chat"],
   },
 };
