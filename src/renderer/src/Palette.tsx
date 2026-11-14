@@ -62,7 +62,8 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const { signOut } = useAuthActions();
   const copyInvite = useCopyInvite();
   const query = text.trim();
-  const worded = useQuery(api.threads.search, query.length > 1 ? { text: query } : "skip") ?? [];
+  const worded =
+    useQuery(api.threads.search, threadsOnly && query.length > 1 ? { text: query } : "skip") ?? [];
   const related = useAction(api.search.related);
   const near = useAsyncOptions<Doc<"messages">>(async (text) =>
     text.length > 1 ? related({ text }) : [],
@@ -115,7 +116,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     hint: rows.find((row) => row.threadId === hit.threadId)?.title,
     run: () => go({ thread: hit.threadId }),
   }));
-  const local = [...(threadsOnly ? [] : commands), ...threads];
+  const local = threadsOnly ? threads : commands;
   const scored = local
     .map((item) => ({ item, score: fuzzyScore(item.label, query) }))
     .filter(({ score }) => score > 0)
@@ -132,9 +133,11 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
         : `Ask Arc for threads about “${query}”`;
   const items: Item[] = picked.length
     ? picked
-    : query
-      ? [...scored, ...messages, { value: "ask", label: asking, run: consult }]
-      : local;
+    : !query
+      ? local
+      : threadsOnly
+        ? [...scored, ...messages, { value: "ask", label: asking, run: consult }]
+        : scored;
 
   return (
     <Modal grow title="Search">
@@ -145,7 +148,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
           asked.current = "";
           setFound(undefined);
           setText(next);
-          near.setQuery(next.trim());
+          if (threadsOnly) near.setQuery(next.trim());
         }}
         onAction={(value) => {
           if (value !== "ask") setDialog(null);
