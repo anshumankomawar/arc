@@ -530,7 +530,7 @@ small {
         color: var(--text-3);
       }
     }
-    & .options {
+    & .options:not(:empty) {
       padding: 2px 0 4px;
     }
     & [role="option"] {
@@ -552,7 +552,7 @@ small {
     animation: asking 900ms linear infinite;
   }
   & .none {
-    padding: 5px 10px 9px;
+    padding: 5px 10px;
     color: var(--text-3);
   }
 }
