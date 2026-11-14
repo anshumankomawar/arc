@@ -543,6 +543,30 @@ small {
   }
 }
 
+.palette {
+  &[data-busy] {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--field), var(--field)) padding-box,
+      conic-gradient(from var(--turn), var(--line) 70%, var(--accent) 92%, var(--line)) border-box;
+    animation: asking 900ms linear infinite;
+  }
+  & .none {
+    padding: 5px 10px 9px;
+    color: var(--text-3);
+  }
+}
+@property --turn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes asking {
+  to {
+    --turn: 360deg;
+  }
+}
+
 .menu {
   display: flex;
   flex-direction: column;
@@ -857,6 +881,9 @@ small {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .palette[data-busy] {
+    animation: none;
+  }
   .welcome * {
     animation: none !important;
     transition: none !important;

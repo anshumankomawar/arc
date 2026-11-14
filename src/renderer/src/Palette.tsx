@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { api, useBuckets, useCopyInvite, useNames, useThreads, type Doc } from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
@@ -17,6 +17,7 @@ const GROW = { duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 function Modal(props: {
   title: string;
   grow?: boolean;
+  busy?: boolean;
   onClose?: () => void;
   children: ReactNode;
 }) {
@@ -43,6 +44,7 @@ function Modal(props: {
       <DialogContent
         ref={content}
         className={props.grow ? "panel palette grow" : "panel palette"}
+        data-busy={props.busy || undefined}
         initialFocus="input, [contenteditable]"
       >
         <DialogTitle className="hidden">{props.title}</DialogTitle>
@@ -62,8 +64,10 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const { signOut } = useAuthActions();
   const copyInvite = useCopyInvite();
   const query = text.trim();
-  const worded =
-    useQuery(api.threads.search, threadsOnly && query.length > 1 ? { text: query } : "skip") ?? [];
+  const worded = useQuery(
+    api.threads.search,
+    threadsOnly && query.length > 1 ? { text: query } : "skip",
+  );
   const related = useAction(api.search.related);
   const near = useAsyncOptions<Doc<"messages">>(async (text) =>
     text.length > 1 ? related({ text }) : [],
@@ -109,7 +113,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     hint: names.text(row.lastBody),
     run: () => go({ thread: row.threadId }),
   }));
-  const hits = new Map([...worded, ...near.items].map((hit) => [hit._id, hit]));
+  const hits = new Map([...(worded ?? []), ...near.items].map((hit) => [hit._id, hit]));
   const messages = [...hits.values()].map((hit) => ({
     value: hit._id,
     label: names.text(hit.body),
@@ -125,22 +129,22 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const picked = Array.isArray(found)
     ? found.flatMap((id) => threads.filter((thread) => thread.value === id))
     : [];
-  const asking =
-    found === "asking"
-      ? "Asking Arc"
-      : found
-        ? `Arc found no threads about “${query}”`
-        : `Ask Arc for threads about “${query}”`;
   const items: Item[] = picked.length
     ? picked
     : !query
       ? local
       : threadsOnly
-        ? [...scored, ...messages, { value: "ask", label: asking, run: consult }]
+        ? [...scored, ...messages]
         : scored;
+  const empty = threadsOnly && !!worded && near.status === "idle" && !items.length && !found;
+  useEffect(() => {
+    if (!empty) return;
+    const soon = setTimeout(consult, 400);
+    return () => clearTimeout(soon);
+  }, [empty, query]);
 
   return (
-    <Modal grow title="Search">
+    <Modal grow title="Search" busy={found === "asking"}>
       <Command
         filter={false}
         onQueryChange={(next, details) => {
@@ -151,7 +155,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
           if (threadsOnly) near.setQuery(next.trim());
         }}
         onAction={(value) => {
-          if (value !== "ask") setDialog(null);
+          setDialog(null);
           void items.find((item) => item.value === value)?.run();
         }}
       >
@@ -167,6 +171,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
             </CommandItem>
           ))}
         </CommandList>
+        {Array.isArray(found) && !picked.length && <p className="none">No threads found</p>}
       </Command>
     </Modal>
   );
