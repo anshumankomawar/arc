@@ -117,7 +117,7 @@ export function App() {
         <ToolbarButton
           data-search
           className="search"
-          style={{ visibility: dialog === "search" || dialog === "find" ? "hidden" : undefined }}
+          data-hidden={dialog === "search" || dialog === "find" || undefined}
           onClick={() => setDialog("search")}
         >
           <Icon name="search" />

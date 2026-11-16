@@ -46,6 +46,7 @@ export function Sidebar() {
       <ContextMenu entries={menu}>
         <Listbox
           aria-label="Mailboxes"
+          onContextMenuCapture={() => setMenu([editBuckets])}
           value={view.box}
           onValueChange={(box) => box && go({ box, thread: undefined })}
         >

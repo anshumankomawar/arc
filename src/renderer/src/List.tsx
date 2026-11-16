@@ -59,6 +59,7 @@ export function List() {
         {box === "drafts" ? (
           <Listbox
             aria-label="Drafts"
+            onContextMenuCapture={() => setMenu([])}
             className="scroll"
             value={open ?? null}
             onValueChange={(id) => id && go({ draft: id, thread: undefined })}
@@ -82,6 +83,7 @@ export function List() {
         ) : (
           <Listbox
             aria-label="Threads"
+            onContextMenuCapture={() => setMenu([])}
             className="scroll"
             value={thread ?? null}
             onValueChange={(threadId) => threadId && go({ thread: threadId })}
