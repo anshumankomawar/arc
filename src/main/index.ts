@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, systemPreferences } from "electron";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import icon from "../../build/icon.png?asset";
 import iconDark from "../../resources/icon-dark.png?asset";
 import fraunces from "../renderer/src/fonts/fraunces-latin-wght.woff2?asset";
@@ -99,6 +99,16 @@ ipcMain.handle(
 app.setAsDefaultProtocolClient("arc");
 app.on("open-url", show);
 
+const previews = join(app.getPath("temp"), "arc-previews");
+const clearPreviews = () => rmSync(previews, { recursive: true, force: true });
+
+ipcMain.handle("preview", (_event, name: string, bytes: ArrayBuffer) => {
+  mkdirSync(previews, { recursive: true });
+  const path = join(mkdtempSync(join(previews, "file-")), basename(name));
+  writeFileSync(path, Buffer.from(bytes));
+  window?.previewFile(path);
+});
+
 ipcMain.on("saved", (event) => event.sender.session.flushStorageData());
 
 ipcMain.on("theme", (_event, theme: "dark" | "light") => {
@@ -110,11 +120,15 @@ function syncDockIcon() {
   if (!app.isPackaged) app.dock?.setIcon(nativeTheme.shouldUseDarkColors ? iconDark : icon);
 }
 
-app.on("before-quit", () => (quitting = true));
+app.on("before-quit", () => {
+  quitting = true;
+  clearPreviews();
+});
 app.on("activate", show);
 
 void app.whenReady().then(() => {
   nativeTheme.themeSource = "dark";
+  clearPreviews();
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       { role: "appMenu" },

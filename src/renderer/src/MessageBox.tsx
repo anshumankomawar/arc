@@ -39,6 +39,14 @@ import {
 import { Icon } from "./Icon";
 import { Identicon } from "./Identicon";
 
+export const FileLabel = ({ name, size }: { name: string; size: number }) => (
+  <>
+    <Icon name="attach" size={13} />
+    <span className="clip">{name}</span>
+    <small>{formatFileSize(size)}</small>
+  </>
+);
+
 export function MessageBox(props: {
   label: string;
   placeholder: string;
@@ -60,12 +68,11 @@ export function MessageBox(props: {
   const [busy, setBusy] = useState(false);
   const send = async (body: string) => {
     setBusy(true);
-    setNote(files.getValue().length ? "Uploading" : "");
+    setNote("");
     try {
       props.onSend(body, await Promise.all(files.getValue().map(upload)));
       input.clear();
       files.clear();
-      setNote("");
     } catch {
       setNote("A file didn't upload. Send again to retry.");
     }
@@ -103,7 +110,7 @@ export function MessageBox(props: {
       controller={files}
       onReject={() => setNote(`Files can be up to ${formatFileSize(FILE_LIMIT)}.`)}
     >
-      <FileInputDropzone>
+      <FileInputDropzone className="compose" data-busy={busy || undefined}>
         <TokenInput
           controller={input}
           codec={codec}
@@ -144,21 +151,24 @@ export function MessageBox(props: {
             </TriggerMenuContent>
           </TriggerMenu>
         </TokenInput>
-        <div className="attach">
-          <FileInputTrigger aria-label="Attach files">
-            <Icon name="attach" />
-          </FileInputTrigger>
-          <FileInputList aria-label="Attachments">
-            <FileInputItem>
-              {({ file }) => (
-                <>
-                  {file.name} <small>{formatFileSize(file.size)}</small>
-                  <FileInputItemRemove>×</FileInputItemRemove>
-                </>
-              )}
-            </FileInputItem>
-          </FileInputList>
-        </div>
+        <FileInputTrigger aria-label="Attach files">
+          <Icon name="attach" />
+        </FileInputTrigger>
+        <FileInputList aria-label="Attachments" className="files">
+          <FileInputItem className="file">
+            {({ file }) => (
+              <>
+                <span
+                  className="open"
+                  onClick={async () => window.desktop.preview(file.name, await file.arrayBuffer())}
+                >
+                  <FileLabel name={file.name} size={file.size} />
+                </span>
+                <FileInputItemRemove>×</FileInputItemRemove>
+              </>
+            )}
+          </FileInputItem>
+        </FileInputList>
       </FileInputDropzone>
       {note && (
         <p className="alone" role="alert">

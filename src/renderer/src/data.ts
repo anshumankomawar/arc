@@ -15,6 +15,7 @@ export type Row = ReturnType<typeof useThreads>[number];
 export type Attached = { storageId: Id<"_storage">; name: string };
 
 const EMPTY: never[] = [];
+const sizes = new Map<string, number>();
 
 export const useMe = () => useQuery(api.workspace.me);
 export function useCopyInvite() {
@@ -37,17 +38,23 @@ export function useUpload() {
   return async (file: File): Promise<Attached> => {
     const response = await fetch(await uploadUrl(), { method: "POST", body: file });
     if (!response.ok) throw new Error(`Upload answered ${response.status}`);
-    return { storageId: (await response.json()).storageId, name: file.name };
+    const { storageId } = await response.json();
+    sizes.set(storageId, file.size);
+    return { storageId, name: file.name };
   };
 }
-export function useDownload() {
-  const download = useAction(api.files.download);
-  return async ({ _id, name }: { _id: Id<"files">; name: string }) => {
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([await download({ id: _id })]));
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+export function useFiles() {
+  const bytes = useAction(api.files.download);
+  type Sent = { _id: Id<"files">; name: string };
+  return {
+    preview: async ({ _id, name }: Sent) => window.desktop.preview(name, await bytes({ id: _id })),
+    download: async ({ _id, name }: Sent) => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([await bytes({ id: _id })]));
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+    },
   };
 }
 export const usePeople = () => useQuery(api.workspace.people) ?? EMPTY;
@@ -102,7 +109,7 @@ export const useMove = () =>
   );
 
 export const useSend = () =>
-  useMutation(api.threads.send).withOptimisticUpdate((store, { threadId, body }) => {
+  useMutation(api.threads.send).withOptimisticUpdate((store, { threadId, body, files = [] }) => {
     const me = store.getQuery(api.workspace.me, {});
     const messages = store.getQuery(api.threads.messages, { threadId });
     if (!me?.workspaceId || !messages) return;
@@ -113,7 +120,11 @@ export const useSend = () =>
       threadId,
       authorId: me._id,
       body,
-      files: [],
+      files: files.map(({ storageId, name }) => ({
+        _id: storageId as string as Id<"files">,
+        name,
+        size: sizes.get(storageId) ?? 0,
+      })),
     };
     store.setQuery(api.threads.messages, { threadId }, [...messages, sent]);
     patchRow(store, threadId, { lastAuthorId: me._id, lastBody: body, activeAt: Date.now() });

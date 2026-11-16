@@ -1,14 +1,13 @@
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { Button } from "@ui-sdk/react/button";
-import { formatFileSize } from "@ui-sdk/react/file-input";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { createTokenInputController } from "@ui-sdk/react/token-input";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   api,
   parts,
-  useDownload,
+  useFiles,
   useMark,
   useMe,
   useNames,
@@ -17,9 +16,9 @@ import {
   type Attached,
   type Id,
 } from "./data";
-import { Icon } from "./Icon";
 import { Identicon } from "./Identicon";
-import { MessageBox } from "./MessageBox";
+import { ContextMenu } from "./Menu";
+import { FileLabel, MessageBox } from "./MessageBox";
 import { editDraft, go, removeDraft, useUI, type Draft } from "./state";
 import { ago } from "./time";
 
@@ -80,7 +79,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   const { name } = useNames();
   const send = useSend();
   const mark = useMark();
-  const download = useDownload();
+  const { preview, download } = useFiles();
   const [reply] = useState(createTokenInputController);
   const turns = messages.reduce<(typeof messages)[]>((turns, message) => {
     if (turns.at(-1)?.[0].authorId === message.authorId) turns.at(-1)!.push(message);
@@ -110,16 +109,30 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
               </div>
               {turn.map((message) => (
                 <Fragment key={message._id}>
-                  <p className={message === messages[0] ? "text title" : "text"}>
+                  <p className="text">
                     <Body body={message.body} />
                   </p>
-                  {message.files.map((file) => (
-                    <Button key={file._id} className="file" onClick={() => void download(file)}>
-                      <Icon name="attach" />
-                      <span className="clip">{file.name}</span>
-                      <small>{formatFileSize(file.size)}</small>
-                    </Button>
-                  ))}
+                  {message.files.length > 0 && (
+                    <div className="files">
+                      {message.files.map((file) => (
+                        <ContextMenu
+                          key={file._id}
+                          entries={[
+                            { label: "Preview", run: () => void preview(file) },
+                            { label: "Download", run: () => void download(file) },
+                            {
+                              label: "Copy Name",
+                              run: () => void navigator.clipboard.writeText(file.name),
+                            },
+                          ]}
+                        >
+                          <Button className="file" onClick={() => void download(file)}>
+                            <FileLabel {...file} />
+                          </Button>
+                        </ContextMenu>
+                      ))}
+                    </div>
+                  )}
                 </Fragment>
               ))}
             </div>

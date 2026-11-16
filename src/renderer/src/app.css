@@ -409,10 +409,6 @@ small {
     overflow-wrap: anywhere;
     user-select: text;
 
-    &.title {
-      font-size: 14px;
-      font-weight: 600;
-    }
     & + .text {
       margin-top: 4px;
     }
@@ -477,54 +473,67 @@ small {
     padding: 0 15px 10px;
   }
 }
-.attach {
+.compose {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 6px;
-  color: var(--text-3);
-  font-size: 12px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: flex-start;
 
-  .palette & {
+  & .editor {
+    flex: 1;
+    min-width: 0;
+  }
+  & > button {
+    display: grid;
+    place-items: center;
+    height: 19px;
+    color: var(--text-3);
+
+    &:hover {
+      color: var(--text);
+    }
+    .palette & {
+      height: 42px;
+      margin-right: 15px;
+    }
+  }
+  & .files {
+    flex-basis: 100%;
     margin: 0;
-    padding: 0 15px 10px;
+
+    &:empty {
+      display: none;
+    }
+    .palette & {
+      padding: 0 15px 10px;
+    }
   }
-  & button:hover {
-    color: var(--text);
-  }
-  & [data-slot="file-input-list"] {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-  }
-  & [data-slot="file-input-item"] {
-    display: flex;
-    gap: 5px;
-    align-items: baseline;
-    color: var(--text-2);
+  &[data-busy] .files {
+    opacity: 0.5;
   }
 }
-[data-slot="file-input-dropzone"][data-dragging] {
-  border-radius: 6px;
-  outline: 1px dashed var(--text-3);
-  outline-offset: 6px;
+.open {
+  display: contents;
+}
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
 }
 .file {
   display: flex;
-  gap: 7px;
+  gap: 5px;
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  height: 30px;
-  margin-top: 6px;
-  padding: 0 10px 0 8px;
+  height: 25px;
+  padding: 0 8px 0 6px;
   border: 0.5px solid var(--line);
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--text-2);
-
-  &:hover {
-    background: var(--hover);
-  }
+  font-size: 12px;
+  background: var(--field);
 }
 
 .palette {
@@ -619,16 +628,17 @@ small {
 .menu {
   display: flex;
   flex-direction: column;
-  min-width: 180px;
-  padding: 4px 0;
-  border-radius: 12px;
+  min-width: 150px;
+  padding: 3px 0;
+  border-radius: 9px;
+  font-size: 12px;
 
   & [data-slot="menu-item"] {
     display: flex;
     align-items: center;
-    height: 24px;
-    margin: 0 5px;
-    padding: 0 8px;
+    height: 22px;
+    margin: 0 3px;
+    padding: 0 7px;
     border-radius: 5px;
     white-space: nowrap;
 
@@ -638,7 +648,7 @@ small {
   }
   & [data-slot="menu-separator"] {
     height: 1px;
-    margin: 5px 17px;
+    margin: 3px 10px;
     background: var(--line);
   }
 }
