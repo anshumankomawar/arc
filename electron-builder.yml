@@ -8,5 +8,5 @@ protocols:
     schemes:
       - arc
 mac:
-  icon: build/AppIcon.icon
+  icon: build/icon.icns
   entitlementsInherit: build/entitlements.mac.plist

@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createServer, type Server } from "node:http";
 import { basename, join } from "node:path";
 import icon from "../../build/icon.png?asset";
-import iconDark from "../../resources/icon-dark.png?asset";
 import fraunces from "../renderer/src/fonts/fraunces-latin-wght.woff2?asset";
 import hanken from "../renderer/src/fonts/hanken-grotesk-latin-wght.woff2?asset";
 
@@ -116,10 +115,6 @@ ipcMain.on("theme", (_event, theme: "dark" | "light") => {
   window?.setBackgroundColor(GROUND[theme]);
 });
 
-function syncDockIcon() {
-  if (!app.isPackaged) app.dock?.setIcon(nativeTheme.shouldUseDarkColors ? iconDark : icon);
-}
-
 app.on("before-quit", () => {
   quitting = true;
   clearPreviews();
@@ -141,8 +136,7 @@ void app.whenReady().then(() => {
       { role: "windowMenu" },
     ]),
   );
-  nativeTheme.on("updated", syncDockIcon);
-  syncDockIcon();
+  if (!app.isPackaged) app.dock?.setIcon(icon);
   if (process.platform === "darwin")
     systemPreferences.registerDefaults({
       NSTextInsertionPointBlinkPeriodOn: 1e9,
