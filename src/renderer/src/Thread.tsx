@@ -169,18 +169,18 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
     else turns.push([message]);
     return turns;
   }, []);
-  const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLElement>(null);
 
   useShortcut("r", () => reply.focus(), { description: "Reply" });
   useEffect(() => {
     if (unread) void mark({ threadId, unread: false });
   }, [threadId, unread, mark]);
   useEffect(() => {
-    void end.current?.scrollIntoView({ block: "end" });
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [threadId, messages.length]);
 
   return (
-    <main className="thread">
+    <main ref={scroller} className="thread">
       <article style={{ zoom: `${useUI((ui) => ui.scale)}%` }}>
         {turns.map((turn) => (
           <section key={turn[0]._id} className="turn">
@@ -231,7 +231,6 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
           placeholder="Reply, @mention someone to bring them in, ⌘↵ to send"
           onSend={(body, files) => void send({ threadId, body, files })}
         />
-        <div ref={end} />
       </article>
     </main>
   );

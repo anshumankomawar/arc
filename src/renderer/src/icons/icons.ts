@@ -24,6 +24,8 @@ export const icons = {
   audio:
     '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 11.5V4l5-1v7.5"/><circle cx="5" cy="11.5" r="1.5"/><circle cx="10" cy="10.5" r="1.5"/></g>',
   code: '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3M9 3.5l-2 9"/></g>',
+  compose:
+    '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 3h-3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-3"/><path d="M11.7 2.7a1.13 1.13 0 0 1 1.6 1.6L8.5 9.1l-2.1.5.5-2.1z"/></g>',
   doc: '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5H9l3 3v7a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"/><path d="M9 2.5v3h3M6 8.5h4M6 11h4"/></g>',
   image:
     '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="11" height="10" rx="2"/><circle cx="6" cy="6.5" r="1"/><path d="m3 11.5 3-3 2.5 2.5 2-2 2.5 2.5"/></g>',

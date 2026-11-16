@@ -8,8 +8,6 @@ type View = { box: Box; thread?: Id<"threads">; draft?: string };
 export type Draft = { id: string; text: string; at: number };
 export type Dialog = "search" | "find" | "new" | "settings";
 
-export const mod = window.desktop ? "mod+" : "";
-
 export const theme = createPreference({
   values: ["dark", "light"],
   defaultValue: "light",
