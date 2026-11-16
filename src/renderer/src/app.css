@@ -42,7 +42,7 @@
 }
 body {
   height: 100vh;
-  overflow: auto hidden;
+  overflow: hidden;
   color: var(--text);
   background: linear-gradient(var(--chrome), var(--chrome));
   font:
@@ -58,6 +58,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: auto hidden;
 }
 button,
 input,
@@ -229,8 +230,11 @@ small {
   }
 }
 
-.topbar,
-.columns {
+.topbar {
+  position: sticky;
+  left: 0;
+}
+.topbar + .columns {
   min-width: 960px;
 }
 .columns {

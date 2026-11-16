@@ -3,7 +3,7 @@ import { useAsyncOptions } from "@ui-sdk/react/async-options";
 import { fuzzyScore } from "@ui-sdk/core/text-match";
 import { Command, CommandInput, CommandItem, CommandList } from "@ui-sdk/react/command";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
-import { useShortcut } from "@ui-sdk/react/shortcuts";
+import { formatShortcut, useShortcut } from "@ui-sdk/react/shortcuts";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -18,7 +18,7 @@ import {
 } from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
-import { addDraft, go, reset, setDialog, theme } from "./state";
+import { addDraft, go, mod, reset, setDialog, theme } from "./state";
 
 const GROW = { duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 
@@ -98,7 +98,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     run,
   });
   const commands = [
-    command("Write a new message", () => setDialog("new"), "⌘N"),
+    command("Write a new message", () => setDialog("new"), formatShortcut(`${mod}n`)),
     command("Go to All Threads", () => go({ box: "all", thread: undefined })),
     command("Go to Drafts", () => go({ box: "drafts", thread: undefined })),
     command("Go to Buckets", () => go({ box: "inbox", thread: undefined })),
@@ -106,10 +106,10 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
       command(
         `Go to ${bucket.name}`,
         () => go({ box: bucket._id, thread: undefined }),
-        index < 9 ? `⌘${index + 1}` : undefined,
+        index < 9 ? formatShortcut(`${mod}${index + 1}`) : undefined,
       ),
     ),
-    command("Open Settings", () => setDialog("settings"), "⌘,"),
+    command("Open Settings", () => setDialog("settings"), formatShortcut(`${mod},`)),
     command("Switch to the dark theme", () => theme.set("dark")),
     command("Switch to the light theme", () => theme.set("light")),
     command("Copy the invite link", copyInvite),

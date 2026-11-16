@@ -1,5 +1,4 @@
 import { Listbox, ListboxGroup, ListboxGroupLabel, ListboxItem } from "@ui-sdk/react/listbox";
-import { useState } from "react";
 import { sections, useBuckets, useMark, useMove, useNames, useThreads, type Row } from "./data";
 import { Icon } from "./Icon";
 import { ContextMenu, type MenuEntry } from "./Menu";
@@ -14,7 +13,6 @@ export function List() {
   const names = useNames();
   const mark = useMark();
   const move = useMove();
-  const [menu, setMenu] = useState<MenuEntry[]>([]);
   const groups = sections(rows, box, buckets);
   const listed = groups.flatMap((group) => group.rows);
   const total = box === "drafts" ? drafts.length : listed.length;
@@ -35,76 +33,66 @@ export function List() {
       })),
   ];
   const card = (row: Row) => (
-    <ListboxItem
-      key={row.threadId}
-      value={row.threadId}
-      label={row.title}
-      className="card"
-      onContextMenu={() => setMenu(entries(row))}
-    >
-      <span className="line">
-        <b className="clip">{row.title}</b>
-        {row.unread && <i className="unread" aria-label="Unread" />}
-        <time>{stamp(row.activeAt)}</time>
-      </span>
-      <span className="preview clip">
-        <b>{names.name(row.lastAuthorId)}</b> {names.text(row.lastBody)}
-      </span>
-    </ListboxItem>
+    <ContextMenu key={row.threadId} entries={entries(row)}>
+      <ListboxItem value={row.threadId} label={row.title} className="card">
+        <span className="line">
+          <b className="clip">{row.title}</b>
+          {row.unread && <i className="unread" aria-label="Unread" />}
+          <time>{stamp(row.activeAt)}</time>
+        </span>
+        <span className="preview clip">
+          <b>{names.name(row.lastAuthorId)}</b> {names.text(row.lastBody)}
+        </span>
+      </ListboxItem>
+    </ContextMenu>
   );
 
   return (
     <section className="list">
-      <ContextMenu entries={menu}>
-        {box === "drafts" ? (
-          <Listbox
-            aria-label="Drafts"
-            onContextMenuCapture={() => setMenu([])}
-            className="scroll"
-            value={open ?? null}
-            onValueChange={(id) => id && go({ draft: id, thread: undefined })}
-          >
-            {drafts.map((draft) => (
-              <ListboxItem
-                key={draft.id}
-                value={draft.id}
-                className="card"
-                onContextMenu={() =>
-                  setMenu([{ label: "Delete Draft", run: () => removeDraft(draft.id) }])
-                }
-              >
+      {box === "drafts" ? (
+        <Listbox
+          aria-label="Drafts"
+          className="scroll"
+          value={open ?? null}
+          onValueChange={(id) => id && go({ draft: id, thread: undefined })}
+        >
+          {drafts.map((draft) => (
+            <ContextMenu
+              key={draft.id}
+              entries={[{ label: "Delete Draft", run: () => removeDraft(draft.id) }]}
+            >
+              <ListboxItem value={draft.id} className="card">
                 <span className="line">
                   <b className="clip">{names.text(draft.text).split("\n")[0]}</b>
                   <time>{stamp(draft.at)}</time>
                 </span>
               </ListboxItem>
-            ))}
-          </Listbox>
-        ) : (
-          <Listbox
-            aria-label="Threads"
-            onContextMenuCapture={() => setMenu([])}
-            className="scroll"
-            value={thread ?? null}
-            onValueChange={(threadId) => threadId && go({ thread: threadId })}
-          >
-            {groups.map((group) =>
-              group.title ? (
-                <ListboxGroup key={group.title}>
-                  <ListboxGroupLabel>
-                    <Icon name="folder" color="var(--folder)" />
-                    {group.title}
-                    <small>{group.rows.length}</small>
-                  </ListboxGroupLabel>
-                  {group.rows.map(card)}
-                </ListboxGroup>
-              ) : (
-                group.rows.map(card)
-              ),
-            )}
-          </Listbox>
-        )}
-      </ContextMenu>
+            </ContextMenu>
+          ))}
+        </Listbox>
+      ) : (
+        <Listbox
+          aria-label="Threads"
+          className="scroll"
+          value={thread ?? null}
+          onValueChange={(threadId) => threadId && go({ thread: threadId })}
+        >
+          {groups.map((group) =>
+            group.title ? (
+              <ListboxGroup key={group.title}>
+                <ListboxGroupLabel>
+                  <Icon name="folder" color="var(--folder)" />
+                  {group.title}
+                  <small>{group.rows.length}</small>
+                </ListboxGroupLabel>
+                {group.rows.map(card)}
+              </ListboxGroup>
+            ) : (
+              group.rows.map(card)
+            ),
+          )}
+        </Listbox>
+      )}
       {total === 0 && (
         <div className="empty">
           <Icon name="inbox" size={28} />

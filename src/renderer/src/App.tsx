@@ -13,6 +13,7 @@ import {
   back,
   forward,
   go,
+  mod,
   resetScale,
   scaleBy,
   setDialog,
@@ -60,15 +61,15 @@ function useShortcuts() {
 
   useShortcut("mod+k", () => setDialog("search"), { description: "Search" });
   useShortcut("mod+f", () => setDialog("find"), { description: "Search threads" });
-  useShortcut("mod+n", () => setDialog("new"), { description: "New message" });
-  useShortcut("mod+,", () => setDialog("settings"), { description: "Settings" });
-  useShortcut("mod+[", back, { description: "Back" });
-  useShortcut("mod+]", forward, { description: "Forward" });
-  useShortcut("mod+\\", toggleSidebar, { description: "Show or hide the sidebar" });
-  useShortcut("mod+=", () => scaleBy(10), { description: "Larger thread text" });
-  useShortcut("mod+-", () => scaleBy(-10), { description: "Smaller thread text" });
-  useShortcut("mod+0", resetScale, { description: "Actual size" });
-  useShortcut("mod+e", done, { description: "Mark done" });
+  useShortcut(`${mod}n`, () => setDialog("new"), { description: "New message" });
+  useShortcut(`${mod},`, () => setDialog("settings"), { description: "Settings" });
+  useShortcut(`${mod}[`, back, { description: "Back" });
+  useShortcut(`${mod}]`, forward, { description: "Forward" });
+  useShortcut(`${mod}\\`, toggleSidebar, { description: "Show or hide the sidebar" });
+  useShortcut(`${mod}=`, () => scaleBy(10), { description: "Larger thread text" });
+  useShortcut(`${mod}-`, () => scaleBy(-10), { description: "Smaller thread text" });
+  useShortcut(`${mod}0`, resetScale, { description: "Actual size" });
+  useShortcut(mod ? "mod+e" : null, done, { description: "Mark done" });
   useShortcut("e", done, { description: "Mark done" });
   useShortcut("u", unread, { description: "Mark unread" });
   useShortcut("j", () => open(at + 1), { description: "Next thread" });
@@ -76,7 +77,7 @@ function useShortcuts() {
   useShortcut("escape", leave, { allowInInput: true, description: "Close" });
   for (const key of BUCKET_KEYS)
     useShortcut(
-      buckets[key - 1] ? `mod+${key}` : null,
+      buckets[key - 1] ? `${mod}${key}` : null,
       () => go({ box: buckets[key - 1]._id, thread: undefined }),
       { description: `Bucket ${key}` },
     );
