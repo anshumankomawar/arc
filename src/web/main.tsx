@@ -26,7 +26,7 @@ function Welcome() {
   return (
     <main className="welcome">
       <div>
-        <h1>{workspace ? `Join ${workspace} on Arc` : "Where decisions don’t get lost"}</h1>
+        <h1>{workspace ? `You’re invited to ${workspace}` : "Where decisions don’t get lost"}</h1>
         <p>
           {workspace
             ? "Sign in with your Google account to accept the invite."

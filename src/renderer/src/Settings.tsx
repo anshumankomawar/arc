@@ -152,7 +152,7 @@ export function Settings() {
           <Section
             title="Workspace"
             heading={me.workspace}
-            hint="Members of this workspace. Anyone with the invite link can join."
+            hint="Everyone in this workspace. Anyone you send the invite link to can join."
           >
             <div className="people">
               {people.map((person) => (
