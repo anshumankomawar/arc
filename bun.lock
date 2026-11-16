@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "threads",
+      "name": "arc",
       "dependencies": {
         "@anthropic-ai/sdk": "^1.8.0",
         "@convex-dev/auth": "2.0.0",

@@ -1,5 +1,4 @@
 appId: com.threads.arc
-productName: Arc
 directories:
   buildResources: build
 files:
