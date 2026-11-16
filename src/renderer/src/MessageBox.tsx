@@ -36,12 +36,26 @@ import {
   useUpload,
   type Attached,
 } from "./data";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 import { Identicon } from "./Identicon";
+
+const KINDS: [IconName, string][] = [
+  ["image", "png jpg jpeg gif webp heic svg bmp tiff"],
+  ["video", "mp4 mov mkv webm avi"],
+  ["audio", "mp3 wav m4a aac flac ogg"],
+  ["doc", "pdf doc docx txt md rtf pages"],
+  ["sheet", "csv tsv xls xlsx numbers"],
+  ["zip", "zip gz tar rar 7z dmg"],
+  ["code", "js jsx ts tsx json html css py go rs sh yml yaml swift"],
+];
+const kindOf = (name: string) => {
+  const extension = name.split(".").pop()!.toLowerCase();
+  return KINDS.find(([, extensions]) => extensions.split(" ").includes(extension))?.[0] ?? "attach";
+};
 
 export const FileLabel = ({ name, size }: { name: string; size: number }) => (
   <>
-    <Icon name="attach" size={13} />
+    <Icon name={kindOf(name)} size={13} />
     <span className="clip">{name}</span>
     <small>{formatFileSize(size)}</small>
   </>
