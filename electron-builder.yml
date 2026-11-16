@@ -9,4 +9,23 @@ protocols:
       - arc
 mac:
   icon: build/icon.icns
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
+dmg:
+  artifactName: ${productName}.${ext}
+publish:
+  - provider: generic
+    url: https://downloads.arcteams.chat
+  - provider: s3
+    bucket: arc-downloads
+    endpoint: https://9b729b6bdd45d5bcf133de0eb5add59d.r2.cloudflarestorage.com
+    region: auto
+    acl: null

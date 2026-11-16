@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, systemPreferences } from "electron";
+import { autoUpdater } from "electron-updater";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { basename, join } from "node:path";
@@ -121,6 +122,8 @@ app.on("before-quit", () => {
 });
 app.on("activate", show);
 
+const update = () => void autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+
 void app.whenReady().then(() => {
   nativeTheme.themeSource = "dark";
   clearPreviews();
@@ -137,6 +140,10 @@ void app.whenReady().then(() => {
     ]),
   );
   if (!app.isPackaged) app.dock?.setIcon(icon);
+  if (app.isPackaged) {
+    update();
+    setInterval(update, 4 * 60 * 60 * 1000);
+  }
   if (process.platform === "darwin")
     systemPreferences.registerDefaults({
       NSTextInsertionPointBlinkPeriodOn: 1e9,

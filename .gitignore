@@ -3,4 +3,5 @@ out
 dist
 .cloudflare
 .env.local
+.env.release
 .DS_Store

@@ -65,6 +65,41 @@ bunx convex deploy                            # the backend in convex/, to the s
 
 Deploy the backend when `convex/` changes on the `convex` branch. Its keys are set with `bunx convex env set --prod`.
 
+## Releasing the Mac app
+
+Arc is downloaded from the website, not the App Store. A release is signed with the team's Developer ID, notarized by
+Apple, and uploaded to the `arc-downloads` R2 bucket, which https://downloads.arcteams.chat serves:
+`https://downloads.arcteams.chat/Arc.dmg` is the download, and `latest-mac.yml` with its zip is what installed copies
+check every few hours and install when they quit (`electron-updater`).
+
+Once, on the Mac that releases:
+
+1. A **Developer ID Application** certificate in the login keychain (Xcode, Settings, Accounts, Manage Certificates;
+   only the team's Account Holder can create one).
+2. Credentials for notarizing: an **app-specific password** for the developer account's Apple ID
+   (appleid.apple.com, Sign-In and Security) and the **Team ID** (developer.apple.com, Membership). An App Store
+   Connect API key (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) works instead.
+3. An **R2 API token** with Object Read & Write on `arc-downloads` (Cloudflare, R2, Manage API tokens).
+4. `.env.release` in the repo root (it's gitignored):
+
+   ```sh
+   APPLE_ID=you@example.com
+   APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+   APPLE_TEAM_ID=XXXXXXXXXX
+   AWS_ACCESS_KEY_ID=...       # the R2 token's Access Key ID
+   AWS_SECRET_ACCESS_KEY=...   # and its Secret Access Key
+   ```
+
+Each release: raise `version` in `package.json`, then
+
+```sh
+bun run release:mac
+```
+
+It builds against the shared deployment, makes one universal app for Apple silicon and Intel, signs, notarizes and
+uploads it, and clears the cached `Arc.dmg` so the download link gives the new one. Copies already installed update
+themselves.
+
 ## Check it
 
 ```sh
