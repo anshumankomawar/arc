@@ -817,7 +817,7 @@ small {
   & input {
     width: 100%;
     height: 42px;
-    margin-top: 26px;
+    margin-top: 12px;
     padding: 0 18px;
     border: 0.5px solid var(--line);
     border-radius: 999px;
@@ -857,10 +857,6 @@ small {
     &[data-disabled] {
       opacity: 0.8;
     }
-    &.secondary {
-      color: var(--text);
-      background: var(--field);
-    }
     &.link {
       height: auto;
       color: var(--text-3);
@@ -868,6 +864,44 @@ small {
       font-size: 13px;
       font-weight: 400;
     }
+  }
+  & [data-slot="segmented-control"] {
+    position: relative;
+    display: flex;
+    isolation: isolate;
+    margin-top: 26px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--field);
+    animation: arrive 600ms var(--ease) 360ms backwards;
+
+    & button {
+      width: 92px;
+      height: 30px;
+      margin: 0;
+      color: var(--text-3);
+      background: none;
+      transition-property: color, transform;
+      animation: none;
+
+      &[data-checked] {
+        color: var(--text);
+      }
+    }
+  }
+  & [data-slot="segmented-control-indicator"] {
+    position: absolute;
+    z-index: -1;
+    top: var(--segmented-control-indicator-top);
+    left: var(--segmented-control-indicator-left);
+    width: var(--segmented-control-indicator-width);
+    height: var(--segmented-control-indicator-height);
+    border-radius: 999px;
+    background: light-dark(#ffffff, color-mix(in srgb, var(--text) 16%, var(--chrome)));
+    box-shadow:
+      0 0 0 0.5px var(--line),
+      0 1px 3px rgb(0 0 0 / 10%);
+    transition: left 320ms var(--ease);
   }
   & i {
     width: 14px;
