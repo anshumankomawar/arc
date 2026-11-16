@@ -32,6 +32,44 @@ test("a file goes with its message to the thread's members and nobody else", asy
   }
 });
 
+test("a thumbnail is kept with its file, and can't be someone else's file", async () => {
+  const { ada, grace, linus, store } = await setup();
+  const secret = await store("secret");
+  const threadId = await ada.as.mutation(api.threads.start, {
+    body: `${personToken(grace._id)} photo`,
+    files: [
+      {
+        storageId: secret,
+        name: "a.png",
+        thumb: { storageId: await store("small"), width: 4, height: 3 },
+      },
+    ],
+  });
+  await ada.as.mutation(api.threads.send, {
+    threadId,
+    body: "notes",
+    files: [{ storageId: await store("x"), name: "notes.md", snippet: "a".repeat(2000) }],
+  });
+  const [{ files }, notes] = await grace.as.query(api.threads.messages, { threadId });
+  expect(notes.files[0].snippet).toHaveLength(1500);
+  expect(files).toMatchObject([{ name: "a.png", thumb: { width: 4, height: 3 } }]);
+  const small = await grace.as.action(api.files.download, { id: files[0].thumb!.id });
+  expect(new TextDecoder().decode(small)).toBe("small");
+
+  await expect(
+    linus.as.mutation(api.threads.start, {
+      body: `${personToken(grace._id)} mine`,
+      files: [
+        {
+          storageId: await store("x"),
+          name: "x.png",
+          thumb: { storageId: secret, width: 1, height: 1 },
+        },
+      ],
+    }),
+  ).rejects.toThrow();
+});
+
 test("a stored file can be attached once, and only if it is small enough", async () => {
   const { ada, grace, linus, store } = await setup();
   const storageId = await store("secret");

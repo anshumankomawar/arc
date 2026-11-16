@@ -116,9 +116,33 @@ small {
   background: var(--panel);
   box-shadow: var(--shadow);
 }
+.palette,
+.settings,
 [role="alertdialog"] {
   position: fixed;
   inset: 0;
+}
+.palette,
+.settings {
+  max-width: calc(100vw - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+[role="alertdialog"] button,
+.settings [data-slot="tabs-panel"] button {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+
+  &:hover,
+  &:focus-visible,
+  &[data-checked] {
+    background: var(--selected);
+  }
+}
+[role="alertdialog"] {
   width: 320px;
   height: fit-content;
   margin: auto;
@@ -138,17 +162,6 @@ small {
     gap: 6px;
     justify-content: flex-end;
     margin-top: 14px;
-  }
-  & button {
-    height: 26px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-
-    &:hover,
-    &:focus-visible {
-      background: var(--selected);
-    }
   }
 }
 .topbar {
@@ -205,6 +218,9 @@ small {
   cursor: text;
   -webkit-app-region: no-drag;
 
+  &[data-hidden] {
+    visibility: hidden;
+  }
   & span {
     flex: 1;
   }
@@ -240,10 +256,22 @@ small {
 }
 .sidebar [data-slot="listbox"],
 .list .scroll,
-.list [data-slot="listbox-group"] {
+.list [data-slot="listbox-group"],
+.settings [data-slot="tabs-list"] {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.sidebar .box,
+.sidebar .profile,
+.settings [data-slot="tabs-tab"] {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+
+  &[data-selected] {
+    background: var(--selected);
+  }
 }
 
 .sidebar {
@@ -258,13 +286,6 @@ small {
     gap: 8px;
     align-items: center;
     flex-shrink: 0;
-    height: 30px;
-    padding: 0 8px;
-    border-radius: 8px;
-
-    &[data-selected] {
-      background: var(--selected);
-    }
   }
   & .nested {
     margin-left: 15px;
@@ -404,23 +425,29 @@ small {
     }
   }
   & .text {
-    line-height: 19px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    user-select: text;
-
     & + .text {
       margin-top: 4px;
+    }
+    & a {
+      color: var(--accent);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
   }
 }
 
+.thread .text,
 .editor {
-  min-height: 19px;
   line-height: 19px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
+}
+.editor {
+  min-height: 19px;
   cursor: text;
 
   &[data-empty]::before {
@@ -440,7 +467,7 @@ small {
     width: 330px;
     padding: 4px 0;
   }
-  & [role="option"] {
+  & :is([data-slot="command-item"], [data-slot="trigger-menu-item"]) {
     display: flex;
     gap: 9px;
     align-items: center;
@@ -513,12 +540,81 @@ small {
   }
 }
 .open {
-  display: contents;
+  display: flex;
+  flex: 1;
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+}
+.pictured {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  margin: 0;
+  border: 0.5px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--field);
+
+  & .file {
+    width: auto;
+    border: 0;
+    background: none;
+  }
+  & .look {
+    display: block;
+    width: calc(100% - 4px);
+    margin: 2px 2px 0;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  & .snippet {
+    max-height: 190px;
+    padding: 7px 9px;
+    color: var(--text-2);
+    background: var(--panel);
+    font:
+      11px/15px ui-monospace,
+      Menlo,
+      monospace;
+    white-space: pre;
+  }
+}
+.shot {
+  display: block;
+  max-width: 100%;
+  background: var(--field);
+}
+.unfurl {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 460px;
+  margin-top: 6px;
+  padding: 1px 0 1px 10px;
+  border-left: 2px solid var(--line);
+  color: var(--text-3);
+  font-size: 12px;
+  text-decoration: none;
+
+  & b {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  & .shot {
+    width: 300px;
+    height: 157px;
+    margin-top: 6px;
+    border-radius: 6px;
+    object-fit: scale-down;
+  }
 }
 .files {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  align-items: flex-start;
   margin-top: 6px;
 }
 .file {
@@ -537,16 +633,11 @@ small {
 }
 
 .palette {
-  position: fixed;
-  inset: 0;
   flex-direction: column;
   width: 704px;
-  max-width: calc(100vw - 32px);
   height: fit-content;
   max-height: min(616px, 82vh);
   margin: max(80px, 18vh) auto auto;
-  padding: 0;
-  overflow: hidden;
 
   &[data-open] {
     display: flex;
@@ -591,7 +682,7 @@ small {
     & .options:not(:empty) {
       padding: 2px 0 4px;
     }
-    & [role="option"] {
+    & [data-slot="command-item"] {
       height: 26px;
       padding: 0 5px;
     }
@@ -654,40 +745,24 @@ small {
 }
 
 .settings {
-  position: fixed;
-  inset: 0;
   width: 760px;
-  max-width: calc(100vw - 32px);
   height: min(520px, 82vh);
   margin: auto;
-  padding: 0;
-  overflow: hidden;
 
   & > div {
     display: flex;
     height: 100%;
   }
-  & [role="tablist"] {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  & [data-slot="tabs-list"] {
     flex: 0 0 180px;
     padding: 9px 8px;
     border-right: 1px solid var(--line);
   }
-  & [role="tab"] {
-    height: 30px;
-    padding: 0 8px;
-    border-radius: 8px;
+  & [data-slot="tabs-tab"] {
     overflow: hidden;
-    text-align: left;
     white-space: nowrap;
-
-    &[data-selected] {
-      background: var(--selected);
-    }
   }
-  & [role="tabpanel"] {
+  & [data-slot="tabs-panel"] {
     flex: 1;
     min-width: 0;
     padding: 16px 20px;
@@ -751,18 +826,6 @@ small {
   }
   & .row:has(textarea) {
     align-items: flex-start;
-  }
-  & [role="tabpanel"] button {
-    flex-shrink: 0;
-    height: 26px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-
-    &:hover,
-    &[data-checked] {
-      background: var(--selected);
-    }
   }
   & .quiet {
     border-color: transparent;
@@ -907,9 +970,6 @@ small {
     transition-property: background-color, opacity, transform;
     animation: arrive 600ms var(--ease) 420ms backwards;
 
-    &:hover {
-      background: color-mix(in srgb, var(--text) 86%, var(--chrome));
-    }
     &:active:enabled {
       transform: scale(0.985);
     }

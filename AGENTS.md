@@ -24,7 +24,7 @@ What's already in use, and where:
 | Right-click menus                     | Menu                                                        | `Menu.tsx`                   |
 | Columns                               | Resizable                                                   | `App.tsx`                    |
 | Keys                                  | `useShortcut`                                               | `App.tsx`, `Thread.tsx`      |
-| Theme                                 | `createPreference`                                          | `state.ts`                   |
+| Theme, and whether previews show      | `createPreference`                                          | `state.ts`                   |
 | Settings popup                        | Dialog, Tabs                                                | `Settings.tsx`               |
 | Confirming a delete                   | `confirm`, Overlay Host                                     | `data.ts`, `App.tsx`         |
 | Settings and the first-run screens    | Input, Textarea, Checkbox, Segmented Control, Field, Button | `Settings.tsx`, `SignIn.tsx` |

@@ -1,11 +1,14 @@
 import { useMutation } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex-helpers/react/cache";
 import { Button } from "@ui-sdk/react/button";
+import { usePreference } from "@ui-sdk/react/preferences";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { createTokenInputController } from "@ui-sdk/react/token-input";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   api,
+  LINK,
   parts,
   useFiles,
   useMark,
@@ -19,19 +22,90 @@ import {
 import { Identicon } from "./Identicon";
 import { ContextMenu } from "./Menu";
 import { FileLabel, MessageBox } from "./MessageBox";
-import { editDraft, go, removeDraft, useUI, type Draft } from "./state";
+import { editDraft, go, previews, removeDraft, useUI, type Draft } from "./state";
 import { ago } from "./time";
+
+type Message = FunctionReturnType<typeof api.threads.messages>[number];
 
 function Body({ body }: { body: string }) {
   const { name } = useNames();
   return parts(body).map((part, index) =>
     typeof part === "string" ? (
-      part
+      part.split(new RegExp(`(${LINK.source})`)).map((piece, at) =>
+        at % 2 ? (
+          <a key={at} href={piece}>
+            {piece}
+          </a>
+        ) : (
+          piece
+        ),
+      )
     ) : (
       <span key={index} className="mention">
         @{name(part.id)}
       </span>
     ),
+  );
+}
+
+function Shot(props: { id: Id<"files"> | Id<"links">; alt: string; style?: CSSProperties }) {
+  const { bytes } = useFiles();
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    let made = "";
+    void bytes({ id: props.id }).then(
+      (loaded) => setUrl((made = URL.createObjectURL(new Blob([loaded])))),
+      () => {},
+    );
+    return () => URL.revokeObjectURL(made);
+  }, [props.id]);
+  return url ? (
+    <img className="shot" src={url} alt={props.alt} style={props.style} />
+  ) : (
+    <div className="shot" style={props.style} />
+  );
+}
+
+function Sent({ file, shown }: { file: Message["files"][number]; shown: boolean }) {
+  const { preview, download } = useFiles();
+  const { width = 1, height = 1 } = file.thumb ?? {};
+  const wide = Math.min(360, width, (240 * width) / height);
+  const card = (
+    <Button className="file" onClick={() => void download(file)}>
+      <FileLabel {...file} />
+    </Button>
+  );
+  return (
+    <ContextMenu
+      entries={[
+        { label: "Preview", run: () => void preview(file) },
+        { label: "Download", run: () => void download(file) },
+        { label: "Copy Name", run: () => void navigator.clipboard.writeText(file.name) },
+      ]}
+    >
+      {shown && (file.thumb || file.snippet) ? (
+        <figure className="pictured" style={{ width: file.thumb ? Math.max(wide + 5, 180) : 360 }}>
+          <Button
+            className={file.thumb ? "look" : "look snippet"}
+            aria-label={`Preview ${file.name}`}
+            onClick={() => void preview(file)}
+          >
+            {file.thumb ? (
+              <Shot
+                id={file.thumb.id}
+                alt=""
+                style={{ width: wide, aspectRatio: `${width} / ${height}` }}
+              />
+            ) : (
+              file.snippet
+            )}
+          </Button>
+          {card}
+        </figure>
+      ) : (
+        card
+      )}
+    </ContextMenu>
   );
 }
 
@@ -79,7 +153,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   const { name } = useNames();
   const send = useSend();
   const mark = useMark();
-  const { preview, download } = useFiles();
+  const shown = usePreference(previews).value === "on";
   const [reply] = useState(createTokenInputController);
   const turns = messages.reduce<(typeof messages)[]>((turns, message) => {
     if (turns.at(-1)?.[0].authorId === message.authorId) turns.at(-1)!.push(message);
@@ -109,30 +183,27 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
               </div>
               {turn.map((message) => (
                 <Fragment key={message._id}>
-                  <p className="text">
-                    <Body body={message.body} />
-                  </p>
+                  {message.body && (
+                    <p className="text">
+                      <Body body={message.body} />
+                    </p>
+                  )}
                   {message.files.length > 0 && (
                     <div className="files">
                       {message.files.map((file) => (
-                        <ContextMenu
-                          key={file._id}
-                          entries={[
-                            { label: "Preview", run: () => void preview(file) },
-                            { label: "Download", run: () => void download(file) },
-                            {
-                              label: "Copy Name",
-                              run: () => void navigator.clipboard.writeText(file.name),
-                            },
-                          ]}
-                        >
-                          <Button className="file" onClick={() => void download(file)}>
-                            <FileLabel {...file} />
-                          </Button>
-                        </ContextMenu>
+                        <Sent key={file._id} file={file} shown={shown} />
                       ))}
                     </div>
                   )}
+                  {shown &&
+                    message.links.map((link) => (
+                      <a key={link._id} className="unfurl" href={link.url}>
+                        <small>{link.site}</small>
+                        <b>{link.title}</b>
+                        {link.description}
+                        {link.image && <Shot id={link._id} alt="" />}
+                      </a>
+                    ))}
                 </Fragment>
               ))}
             </div>

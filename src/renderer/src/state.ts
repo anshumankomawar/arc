@@ -16,6 +16,14 @@ export const theme = createPreference({
   storage: createLocalStorage("theme"),
 });
 
+export const previews = createPreference({
+  values: ["on", "off"],
+  defaultValue: "on",
+  attribute: "data-previews",
+  global: true,
+  storage: createLocalStorage("previews"),
+});
+
 type UI = {
   history: View[];
   at: number;

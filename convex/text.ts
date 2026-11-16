@@ -1,4 +1,5 @@
 export const FILE_LIMIT = 15_000_000;
+export const LINK = /https?:\/\/[^\s<>"']+/g;
 
 const TOKEN = /\[\[(person|group):(\w+)\]\]/g;
 

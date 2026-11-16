@@ -41,9 +41,23 @@ export default defineSchema({
     storageId: v.id("_storage"),
     name: v.string(),
     size: v.number(),
+    hidden: v.optional(v.boolean()),
+    snippet: v.optional(v.string()),
+    thumb: v.optional(v.object({ id: v.id("files"), width: v.number(), height: v.number() })),
   })
     .index("thread", ["threadId"])
     .index("storage", ["storageId"]),
+
+  links: defineTable({
+    workspaceId: v.id("workspaces"),
+    threadId: v.id("threads"),
+    messageId: v.id("messages"),
+    url: v.string(),
+    title: v.string(),
+    description: v.string(),
+    site: v.string(),
+    storageId: v.optional(v.id("_storage")),
+  }).index("thread", ["threadId"]),
 
   vectors: defineTable({
     workspaceId: v.id("workspaces"),

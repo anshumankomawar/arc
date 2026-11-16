@@ -1,6 +1,7 @@
 import { confirm } from "@ui-sdk/react/alert-dialog";
 import { useAction, useMutation } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
+import type { FunctionArgs } from "convex/server";
 import { useQuery } from "convex-helpers/react/cache";
 import { useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
@@ -9,13 +10,16 @@ import { plain } from "../../../convex/text";
 import type { Box } from "./state";
 
 export { api };
-export { FILE_LIMIT, mentions, parts } from "../../../convex/text";
+export { FILE_LIMIT, LINK, mentions, parts } from "../../../convex/text";
 export type { Doc, Id };
 export type Row = ReturnType<typeof useThreads>[number];
-export type Attached = { storageId: Id<"_storage">; name: string };
+export type Attached = NonNullable<FunctionArgs<typeof api.threads.send>["files"]>[number];
 
 const EMPTY: never[] = [];
 const sizes = new Map<string, number>();
+const opening = new Set<string>();
+const TEXT =
+  /\.(txt|md|csv|tsv|log|json|js|jsx|ts|tsx|html|css|py|go|rs|sh|yml|yaml|toml|xml|swift)$/i;
 
 export const useMe = () => useQuery(api.workspace.me);
 export function useCopyInvite() {
@@ -33,21 +37,51 @@ export function useRemoveBucket() {
     if (sure) await remove({ id: _id });
   };
 }
+async function thumbnail(file: File) {
+  const full = await createImageBitmap(file).catch(() => null);
+  if (!full) return;
+  const scale = Math.min(1, 720 / Math.max(full.width, full.height));
+  const small = await createImageBitmap(full, {
+    resizeWidth: Math.round(full.width * scale),
+    resizeHeight: Math.round(full.height * scale),
+    resizeQuality: "high",
+  });
+  const canvas = new OffscreenCanvas(small.width, small.height);
+  canvas.getContext("2d")!.drawImage(small, 0, 0);
+  return {
+    blob: await canvas.convertToBlob({ type: "image/webp", quality: 0.9 }),
+    size: { width: full.width, height: full.height },
+  };
+}
 export function useUpload() {
   const uploadUrl = useMutation(api.files.uploadUrl);
-  return async (file: File): Promise<Attached> => {
-    const response = await fetch(await uploadUrl(), { method: "POST", body: file });
+  const put = async (body: Blob): Promise<Id<"_storage">> => {
+    const response = await fetch(await uploadUrl(), { method: "POST", body });
     if (!response.ok) throw new Error(`Upload answered ${response.status}`);
-    const { storageId } = await response.json();
+    return (await response.json()).storageId;
+  };
+  return async (file: File): Promise<Attached> => {
+    const storageId = await put(file);
     sizes.set(storageId, file.size);
-    return { storageId, name: file.name };
+    const small = await thumbnail(file);
+    const thumb = small && { ...small.size, storageId: await put(small.blob) };
+    const text = TEXT.test(file.name) ? await file.slice(0, 4000).text() : "";
+    const snippet = text.split("\n").slice(0, 12).join("\n").slice(0, 1500) || undefined;
+    return { storageId, name: file.name, thumb, snippet };
   };
 }
 export function useFiles() {
   const bytes = useAction(api.files.download);
   type Sent = { _id: Id<"files">; name: string };
   return {
-    preview: async ({ _id, name }: Sent) => window.desktop.preview(name, await bytes({ id: _id })),
+    bytes,
+    preview: async ({ _id, name }: Sent) => {
+      if (opening.has(_id)) return;
+      opening.add(_id);
+      await bytes({ id: _id })
+        .then((loaded) => window.desktop.preview(name, loaded))
+        .finally(() => opening.delete(_id));
+    },
     download: async ({ _id, name }: Sent) => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(new Blob([await bytes({ id: _id })]));
@@ -120,12 +154,19 @@ export const useSend = () =>
       threadId,
       authorId: me._id,
       body,
-      files: files.map(({ storageId, name }) => ({
+      files: files.map(({ storageId, name, thumb, snippet }) => ({
         _id: storageId as string as Id<"files">,
         name,
+        snippet,
         size: sizes.get(storageId) ?? 0,
+        thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
       })),
+      links: [],
     };
     store.setQuery(api.threads.messages, { threadId }, [...messages, sent]);
-    patchRow(store, threadId, { lastAuthorId: me._id, lastBody: body, activeAt: Date.now() });
+    patchRow(store, threadId, {
+      lastAuthorId: me._id,
+      lastBody: body || files.map((file) => file.name).join(", "),
+      activeAt: Date.now(),
+    });
   });

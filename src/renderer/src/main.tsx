@@ -7,7 +7,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { api, useMe } from "./data";
 import { SignIn, Start } from "./SignIn";
-import { theme } from "./state";
+import { previews, theme } from "./state";
 import "./app.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
@@ -40,7 +40,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ConvexAuthProvider client={convex} api={api.auth} storage={storage}>
       <ConvexQueryCacheProvider>
-        <Preferences preferences={[theme]}>
+        <Preferences preferences={[theme, previews]}>
           <Theme />
           <Unauthenticated>
             <SignIn />

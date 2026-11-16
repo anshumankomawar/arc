@@ -21,7 +21,7 @@ import {
   type Id,
 } from "./data";
 import { Identicon } from "./Identicon";
-import { reset, setDialog, theme, useUI } from "./state";
+import { previews, reset, setDialog, theme, useUI } from "./state";
 
 const saveOnLeave = (event: FocusEvent<HTMLFormElement>) => {
   if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.requestSubmit();
@@ -107,7 +107,8 @@ function Group({ group }: { group?: Doc<"groups"> }) {
             className="chips"
             aria-label={`People in ${of}`}
             defaultValue={group.userIds}
-            onValueChange={(userIds) =>
+            onValueChange={(userIds, details) =>
+              details.reason !== "reset" &&
               void save({ id: group._id, name: group.name, userIds: userIds as Id<"users">[] })
             }
           >
@@ -132,6 +133,7 @@ export function Settings() {
   const groups = useGroups();
   const buckets = useBuckets();
   const { value } = usePreference(theme);
+  const shown = usePreference(previews).value;
   const copyInvite = useCopyInvite();
   const [copied, setCopied] = useState(false);
   const { signOut } = useAuthActions();
@@ -141,7 +143,7 @@ export function Settings() {
       <DialogContent className="panel settings">
         <DialogTitle className="hidden">Settings</DialogTitle>
         <Tabs defaultValue={useUI.getState().tab} orientation="vertical">
-          <TabsList>
+          <TabsList aria-label="Settings">
             {["Workspace", "Account", "Appearance", "Buckets", "Groups"].map((title) => (
               <TabsTab key={title} value={title}>
                 {title}
@@ -190,6 +192,17 @@ export function Settings() {
               >
                 <SegmentedControlItem value="dark">Dark</SegmentedControlItem>
                 <SegmentedControlItem value="light">Light</SegmentedControlItem>
+              </SegmentedControl>
+            </div>
+            <div className="row">
+              <span className="clip">Previews of images and links</span>
+              <SegmentedControl
+                aria-label="Previews of images and links"
+                value={shown}
+                onValueChange={(next) => next && previews.set(next as typeof shown)}
+              >
+                <SegmentedControlItem value="on">On</SegmentedControlItem>
+                <SegmentedControlItem value="off">Off</SegmentedControlItem>
               </SegmentedControl>
             </div>
           </Section>

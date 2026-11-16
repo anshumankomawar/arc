@@ -1,11 +1,21 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { membership, mutation, query, type Ctx } from "./functions";
+import { urlsIn } from "./links";
 import { FILE_LIMIT, mentions, titleOf } from "./text";
 
-const attached = v.array(v.object({ storageId: v.id("_storage"), name: v.string() }));
+const attached = v.array(
+  v.object({
+    storageId: v.id("_storage"),
+    name: v.string(),
+    snippet: v.optional(v.string()),
+    thumb: v.optional(
+      v.object({ storageId: v.id("_storage"), width: v.number(), height: v.number() }),
+    ),
+  }),
+);
 type Attached = typeof attached.type;
 
 export async function post(
@@ -46,23 +56,41 @@ export async function post(
 
   const messageId = await ctx.db.insert("messages", { workspaceId, threadId, authorId, body });
   await ctx.scheduler.runAfter(0, internal.search.index, { messageId });
-  for (const { storageId, name } of files) {
+  if (urlsIn(body).length) await ctx.scheduler.runAfter(0, internal.links.unfurl, { messageId });
+  const claim = async (
+    storageId: Id<"_storage">,
+    name: string,
+    more: Pick<Doc<"files">, "hidden" | "thumb" | "snippet">,
+  ) => {
     const stored = await ctx.db.system.get(storageId);
     const taken = await ctx.db
       .query("files")
       .withIndex("storage", (q) => q.eq("storageId", storageId))
       .first();
     if (!stored || taken || stored.size > FILE_LIMIT) throw new ConvexError("Not found");
-    await ctx.db.insert("files", {
+    const { size } = stored;
+    return ctx.db.insert("files", {
       workspaceId,
       threadId,
       messageId,
       storageId,
       name,
-      size: stored.size,
+      size,
+      ...more,
+    });
+  };
+  for (const { storageId, name, thumb, snippet } of files) {
+    const id = thumb && (await claim(thumb.storageId, name, { hidden: true }));
+    const { width = 0, height = 0 } = thumb ?? {};
+    await claim(storageId, name, {
+      thumb: id && { id, width, height },
+      snippet: snippet?.slice(0, 1500),
     });
   }
-  await ctx.db.patch(threadId, { lastAuthorId: authorId, lastBody: body });
+  await ctx.db.patch(threadId, {
+    lastAuthorId: authorId,
+    lastBody: body || files.map((file) => file.name).join(", "),
+  });
 
   for (const userId of everyone) {
     const row = existing.get(userId);
@@ -114,11 +142,25 @@ export const messages = query({
       .query("files")
       .withIndex("thread", (q) => q.eq("threadId", threadId))
       .collect();
+    const links = await ctx.db
+      .query("links")
+      .withIndex("thread", (q) => q.eq("threadId", threadId))
+      .collect();
     return messages.map((message) => ({
       ...message,
+      links: links
+        .filter((link) => link.messageId === message._id)
+        .map(({ _id, url, title, description, site, storageId }) => ({
+          _id,
+          url,
+          title,
+          description,
+          site,
+          image: !!storageId,
+        })),
       files: files
-        .filter((file) => file.messageId === message._id)
-        .map(({ _id, name, size }) => ({ _id, name, size })),
+        .filter((file) => file.messageId === message._id && !file.hidden)
+        .map(({ _id, name, size, thumb, snippet }) => ({ _id, name, size, thumb, snippet })),
     }));
   },
 });

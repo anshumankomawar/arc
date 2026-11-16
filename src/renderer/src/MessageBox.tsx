@@ -1,3 +1,4 @@
+import { Button } from "@ui-sdk/react/button";
 import {
   createFileInputController,
   FileInput,
@@ -38,6 +39,7 @@ import {
 } from "./data";
 import { Icon, type IconName } from "./Icon";
 import { Identicon } from "./Identicon";
+import { useUI } from "./state";
 
 const KINDS: [IconName, string][] = [
   ["image", "png jpg jpeg gif webp heic svg bmp tiff"],
@@ -67,6 +69,7 @@ export function MessageBox(props: {
   defaultText?: string;
   input?: ReturnType<typeof createTokenInputController>;
   mustMention?: boolean;
+  modal?: boolean;
   onSend: (body: string, files: Attached[]) => void;
   onChange?: (text: string) => void;
 }) {
@@ -76,6 +79,7 @@ export function MessageBox(props: {
   const { name } = useNames();
   const [own] = useState(createTokenInputController);
   const input = props.input ?? own;
+  const dialog = useUI((ui) => ui.dialog);
   const [files] = useState(createFileInputController);
   const upload = useUpload();
   const [note, setNote] = useState("");
@@ -124,7 +128,11 @@ export function MessageBox(props: {
       controller={files}
       onReject={() => setNote(`Files can be up to ${formatFileSize(FILE_LIMIT)}.`)}
     >
-      <FileInputDropzone className="compose" data-busy={busy || undefined}>
+      <FileInputDropzone
+        className="compose"
+        target={props.modal || !dialog ? "document" : undefined}
+        data-busy={busy || undefined}
+      >
         <TokenInput
           controller={input}
           codec={codec}
@@ -136,7 +144,7 @@ export function MessageBox(props: {
           }}
           onSubmit={(value) => {
             const body = toText(value, codec).trim();
-            if (!body || busy) return;
+            if ((!body && !files.getValue().length) || busy) return;
             if (props.mustMention && !reaches(body))
               return setNote("@mention someone to send this to.");
             void send(body);
@@ -172,12 +180,12 @@ export function MessageBox(props: {
           <FileInputItem className="file">
             {({ file }) => (
               <>
-                <span
+                <Button
                   className="open"
                   onClick={async () => window.desktop.preview(file.name, await file.arrayBuffer())}
                 >
                   <FileLabel name={file.name} size={file.size} />
-                </span>
+                </Button>
                 <FileInputItemRemove>×</FileInputItemRemove>
               </>
             )}

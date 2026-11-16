@@ -155,6 +155,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     <Modal grow title="Search" busy={found === "asking"}>
       <Command
         filter={false}
+        status={near.status}
         onQueryChange={(next, details) => {
           if (details.reason === "escape-key") return setDialog(null);
           asked.current = "";
@@ -202,6 +203,7 @@ export function NewMessage() {
       <MessageBox
         label="New Message"
         mustMention
+        modal
         placeholder="Write a message, @mention who it's for, ⌘↵ to send"
         onSend={(body, files) => void send(body, files)}
         onChange={(text) => (written.current = text)}
