@@ -46,6 +46,12 @@ function Home() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <main className="welcome soon">
+      <div>
+        <h1>Mobile app coming soon</h1>
+        <p>For now, open Arc on a computer.</p>
+      </div>
+    </main>
     <ConvexAuthProvider client={convex} api={api.auth} storage={storage}>
       <ConvexQueryCacheProvider>
         <Preferences preferences={[theme, previews]}>
