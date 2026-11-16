@@ -39,8 +39,10 @@ listens on only while you sign in.
 
 ## The website
 
-`src/web` is the site at arcteams.chat: the landing page, Google sign-in, and `/join/<code>`, where an invite link
-leads and where signing in joins the workspace. It shares the app's components, styles and backend.
+arcteams.chat is the same app, built from `src/renderer` for the browser: sign-in, `/join/<code>` (where an invite link
+leads and where signing in joins the workspace), then the workspace itself. The interface asks one question about where
+it runs, whether `window.desktop` exists. Only the desktop has it, for signing in through the system browser, the native
+theme and Quick Look.
 
 ```sh
 bun run web                                         # http://localhost:5173
@@ -75,4 +77,5 @@ bun run build    # types, then the app
   (sorting into buckets), `search.ts` (search by meaning, Ask Arc) and `files.ts` (attachments: uploaded to Convex
   storage, and downloaded only through a function that checks the caller is in the thread) and `links.ts` (a link in a
   message is fetched once, from Convex, for its title, description and image).
-- `src/main` is the Electron window. `src/renderer` is the interface, built from ui-sdk components (see `AGENTS.md`).
+- `src/main` is the Electron window. `src/renderer` is the interface, for the desktop and the website alike, built from
+  ui-sdk components (see `AGENTS.md`).

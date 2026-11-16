@@ -46,7 +46,8 @@ export default defineSchema({
     thumb: v.optional(v.object({ id: v.id("files"), width: v.number(), height: v.number() })),
   })
     .index("thread", ["threadId"])
-    .index("storage", ["storageId"]),
+    .index("storage", ["storageId"])
+    .index("workspace", ["workspaceId"]),
 
   links: defineTable({
     workspaceId: v.id("workspaces"),

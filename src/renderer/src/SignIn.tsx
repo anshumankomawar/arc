@@ -1,3 +1,4 @@
+import { useSignInWithGoogle } from "@convex-dev/auth/methods/google/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@ui-sdk/react/button";
 import { Field, FieldLabel } from "@ui-sdk/react/field";
@@ -7,7 +8,7 @@ import {
   SegmentedControlIndicator,
   SegmentedControlItem,
 } from "@ui-sdk/react/segmented-control";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "./data";
 import { Icon } from "./Icon";
@@ -21,10 +22,29 @@ const loaded = Promise.race([
   new Promise((resolve) => setTimeout(resolve, 1000)),
 ]);
 
-export function SignIn() {
+export const invite = location.pathname.match(/^\/join\/([\w-]+)/)?.[1];
+
+function useLoopback() {
   const { setSession } = useAuthActions();
   const start = useMutation(api.auth.startSignInWithGoogle);
   const complete = useMutation(api.auth.completeSignInWithGoogle);
+  return async () => {
+    const { redirect, state } = await start({ redirectTo: "http://127.0.0.1:47201/" });
+    const code = await window.desktop!.google(redirect);
+    const result = code ? await complete({ code, state }) : undefined;
+    if (result?.status !== "complete") throw new Error("Not signed in");
+    await setSession(result.tokens);
+  };
+}
+function useRedirect() {
+  const { signIn } = useSignInWithGoogle(api.auth);
+  return () => signIn();
+}
+const useGoogle = window.desktop ? useLoopback : useRedirect;
+
+export function SignIn() {
+  const google = useGoogle();
+  const workspace = useQuery(api.workspace.invited, invite ? { invite } : "skip");
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -36,31 +56,33 @@ export function SignIn() {
   const signIn = async () => {
     setBusy(true);
     setFailed(false);
-    const { redirect, state } = await start({ redirectTo: "http://127.0.0.1:47201/" });
-    const code = await window.desktop.google(redirect);
-    const result = code ? await complete({ code, state }) : undefined;
-    if (result?.status === "complete") await setSession(result.tokens);
-    else setFailed(true);
+    await google().catch(() => setFailed(true));
     setBusy(false);
   };
+  const title = workspace ? `You’re invited to ${workspace}` : "Where decisions don’t get lost";
 
   return (
     <main className="welcome">
-      {ready && (
+      {ready && (!invite || workspace !== undefined) && (
         <div>
           <h1>
-            {"Where decisions don’t get lost".split(" ").map((word, index) => (
+            {title.split(" ").map((word, index) => (
               <span key={index} style={{ animationDelay: `${80 + index * 80}ms` }}>
                 {word}{" "}
               </span>
             ))}
           </h1>
-          <p>Sign in to Arc with your Google account.</p>
+          <p>
+            {workspace
+              ? "Sign in with your Google account to accept the invite."
+              : "Arc is team messaging in threads that sort themselves. Sign in with your Google account."}
+          </p>
           <Button onClick={signIn} disabled={busy}>
             {busy ? <i /> : <Icon name="google" size={18} />}
             Continue with Google
           </Button>
           {failed && <p role="alert">Signing in with Google didn't finish.</p>}
+          {workspace === null && <p role="alert">That invite link doesn't lead to a workspace.</p>}
         </div>
       )}
     </main>

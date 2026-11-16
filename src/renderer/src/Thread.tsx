@@ -29,17 +29,26 @@ type Message = FunctionReturnType<typeof api.threads.messages>[number];
 
 function Body({ body }: { body: string }) {
   const { name } = useNames();
+  const { download } = useFiles();
   return parts(body).map((part, index) =>
     typeof part === "string" ? (
       part.split(new RegExp(`(${LINK.source})`)).map((piece, at) =>
         at % 2 ? (
-          <a key={at} href={piece}>
+          <a key={at} href={piece} target="_blank" rel="noreferrer">
             {piece}
           </a>
         ) : (
           piece
         ),
       )
+    ) : part.kind === "file" ? (
+      <Button
+        key={index}
+        className="mention"
+        onClick={() => void download({ _id: part.id as Id<"files">, name: name(part.id) })}
+      >
+        {name(part.id)}
+      </Button>
     ) : (
       <span key={index} className="mention">
         @{name(part.id)}
@@ -78,7 +87,7 @@ function Sent({ file, shown }: { file: Message["files"][number]; shown: boolean 
   return (
     <ContextMenu
       entries={[
-        { label: "Preview", run: () => void preview(file) },
+        ...(window.desktop ? [{ label: "Preview", run: () => void preview(file) }] : []),
         { label: "Download", run: () => void download(file) },
         { label: "Copy Name", run: () => void navigator.clipboard.writeText(file.name) },
       ]}
@@ -197,7 +206,13 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
                   )}
                   {shown &&
                     message.links.map((link) => (
-                      <a key={link._id} className="unfurl" href={link.url}>
+                      <a
+                        key={link._id}
+                        className="unfurl"
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         <small>{link.site}</small>
                         <b>{link.title}</b>
                         {link.description}

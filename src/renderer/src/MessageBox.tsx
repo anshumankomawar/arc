@@ -30,6 +30,7 @@ import {
   FILE_LIMIT,
   mentions,
   parts,
+  useDocuments,
   useGroups,
   useMe,
   useNames,
@@ -76,6 +77,7 @@ export function MessageBox(props: {
   const me = useMe();
   const people = usePeople();
   const groups = useGroups();
+  const documents = useDocuments();
   const { name } = useNames();
   const [own] = useState(createTokenInputController);
   const input = props.input ?? own;
@@ -109,7 +111,11 @@ export function MessageBox(props: {
         parts(text).map((part) =>
           typeof part === "string"
             ? part
-            : { type: "mention", value: `${part.kind}:${part.id}`, label: name(part.id) },
+            : {
+                type: part.kind === "file" ? "file" : "mention",
+                value: `${part.kind}:${part.id}`,
+                label: name(part.id),
+              },
         ),
     }),
     [name],
@@ -150,7 +156,10 @@ export function MessageBox(props: {
             void send(body);
           }}
           renderToken={(token) => (
-            <TokenInputToken className="mention">@{token.label}</TokenInputToken>
+            <TokenInputToken className="mention">
+              {token.type === "file" ? "" : "@"}
+              {token.label}
+            </TokenInputToken>
           )}
         >
           <TokenInputEditor
@@ -158,13 +167,27 @@ export function MessageBox(props: {
             aria-label={props.label}
             placeholder={props.placeholder}
           />
-          <TriggerMenu triggers={[{ char: "@", type: "mention", items: mentionable }]}>
+          <TriggerMenu
+            triggers={[
+              { char: "@", type: "mention", items: mentionable },
+              {
+                char: "/",
+                boundary: "word",
+                type: "file",
+                items: documents.map((file) => ({ value: `file:${file._id}`, label: file.name })),
+              },
+            ]}
+          >
             <TriggerMenuContent className="panel options" sideOffset={6}>
               <TriggerMenuList>
                 {(state) =>
                   (state.items as TriggerMenuDataItem<string>[]).map((item) => (
                     <TriggerMenuItem key={item.value} value={item.value} label={item.label}>
-                      <Identicon seed={item.value.split(":")[1]} size={18} />
+                      {item.value.startsWith("file:") ? (
+                        <Icon name={kindOf(item.label)} />
+                      ) : (
+                        <Identicon seed={item.value.split(":")[1]} size={18} />
+                      )}
                       {item.label}
                     </TriggerMenuItem>
                   ))
@@ -182,7 +205,7 @@ export function MessageBox(props: {
               <>
                 <Button
                   className="open"
-                  onClick={async () => window.desktop.preview(file.name, await file.arrayBuffer())}
+                  onClick={async () => window.desktop?.preview(file.name, await file.arrayBuffer())}
                 >
                   <FileLabel name={file.name} size={file.size} />
                 </Button>

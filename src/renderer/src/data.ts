@@ -6,7 +6,7 @@ import { useQuery } from "convex-helpers/react/cache";
 import { useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { plain } from "../../../convex/text";
+import { mentions, plain } from "../../../convex/text";
 import type { Box } from "./state";
 
 export { api };
@@ -73,37 +73,38 @@ export function useUpload() {
 export function useFiles() {
   const bytes = useAction(api.files.download);
   type Sent = { _id: Id<"files">; name: string };
-  return {
-    bytes,
-    preview: async ({ _id, name }: Sent) => {
-      if (opening.has(_id)) return;
-      opening.add(_id);
-      await bytes({ id: _id })
-        .then((loaded) => window.desktop.preview(name, loaded))
-        .finally(() => opening.delete(_id));
-    },
-    download: async ({ _id, name }: Sent) => {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(new Blob([await bytes({ id: _id })]));
-      link.download = name;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
-    },
+  const download = async ({ _id, name }: Sent) => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([await bytes({ id: _id })]));
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
   };
+  const look = async ({ _id, name }: Sent) => {
+    if (opening.has(_id)) return;
+    opening.add(_id);
+    await bytes({ id: _id })
+      .then((loaded) => window.desktop!.preview(name, loaded))
+      .finally(() => opening.delete(_id));
+  };
+  return { bytes, download, preview: window.desktop ? look : download };
 }
 export const usePeople = () => useQuery(api.workspace.people) ?? EMPTY;
 export const useGroups = () => useQuery(api.workspace.groups) ?? EMPTY;
 export const useBuckets = () => useQuery(api.workspace.buckets) ?? EMPTY;
 export const useThreads = () => useQuery(api.threads.list) ?? EMPTY;
+export const useDocuments = () => useQuery(api.files.mine) ?? EMPTY;
 
 export function useNames() {
   const people = usePeople();
   const groups = useGroups();
+  const documents = useDocuments();
   return useMemo(() => {
-    const names = new Map<string, string>([...people, ...groups].map((it) => [it._id, it.name]));
+    const named = [...people, ...groups, ...documents];
+    const names = new Map<string, string>(named.map((it) => [it._id, it.name]));
     const name = (id: string) => names.get(id) ?? "someone";
     return { name, text: (body: string) => plain(body, (_kind, id) => name(id)) };
-  }, [people, groups]);
+  }, [people, groups, documents]);
 }
 
 export const inBox = (rows: Row[], box: Box) =>
@@ -147,6 +148,10 @@ export const useSend = () =>
     const me = store.getQuery(api.workspace.me, {});
     const messages = store.getQuery(api.threads.messages, { threadId });
     if (!me?.workspaceId || !messages) return;
+    const here = new Set(messages.flatMap((message) => message.files.map((file) => file._id)));
+    const referred = (store.getQuery(api.files.mine, {}) ?? []).filter(
+      (file) => mentions(body, "file").includes(file._id) && !here.has(file._id),
+    );
     const sent = {
       _id: crypto.randomUUID() as Id<"messages">,
       _creationTime: Date.now(),
@@ -154,13 +159,16 @@ export const useSend = () =>
       threadId,
       authorId: me._id,
       body,
-      files: files.map(({ storageId, name, thumb, snippet }) => ({
-        _id: storageId as string as Id<"files">,
-        name,
-        snippet,
-        size: sizes.get(storageId) ?? 0,
-        thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
-      })),
+      files: [
+        ...files.map(({ storageId, name, thumb, snippet }) => ({
+          _id: storageId as string as Id<"files">,
+          name,
+          snippet,
+          size: sizes.get(storageId) ?? 0,
+          thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
+        })),
+        ...referred.map((file) => ({ ...file, snippet: undefined, thumb: undefined })),
+      ],
       links: [],
     };
     store.setQuery(api.threads.messages, { threadId }, [...messages, sent]);

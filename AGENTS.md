@@ -46,4 +46,6 @@ Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's 
 - A message's delivery lives in `post` in `convex/threads.ts`. Change it with its tests, in `tests/`.
 - A file's bytes leave storage only through `download` in `convex/files.ts`, which checks membership. Never give a
   client a storage URL (`ctx.storage.getUrl`): anyone holding one can fetch the file without signing in.
+- A `[[file:id]]` in a message shares that file with the thread: `post` copies its row there, after checking the sender
+  is in the thread it came from.
 - After adding or removing a dependency, restart `bun run dev`: a running dev server keeps its old bundle of them.

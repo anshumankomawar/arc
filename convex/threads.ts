@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { membership, mutation, query, type Ctx } from "./functions";
 import { urlsIn } from "./links";
-import { FILE_LIMIT, mentions, titleOf } from "./text";
+import { FILE_LIMIT, fileToken, mentions, titleOf } from "./text";
 
 const attached = v.array(
   v.object({
@@ -87,9 +87,26 @@ export async function post(
       snippet: snippet?.slice(0, 1500),
     });
   }
+  let text = body;
+  let shown = body;
+  for (const id of new Set(mentions(body, "file"))) {
+    const fileId = ctx.db.normalizeId("files", id);
+    const source = fileId && (await ctx.db.get(fileId));
+    if (!source || source.hidden || source.workspaceId !== workspaceId)
+      throw new ConvexError("Not found");
+    await membership(ctx, source.threadId);
+    shown = shown.replaceAll(fileToken(id), source.name);
+    if (source.threadId === threadId) continue;
+    const copy = ({ _id, _creationTime, ...row }: Doc<"files">) =>
+      ctx.db.insert("files", { ...row, threadId, messageId });
+    const small = source.thumb && (await ctx.db.get(source.thumb.id));
+    const thumb = source.thumb && small ? { ...source.thumb, id: await copy(small) } : undefined;
+    text = text.replaceAll(fileToken(id), fileToken(await copy({ ...source, thumb })));
+  }
+  if (text !== body) await ctx.db.patch(messageId, { body: text });
   await ctx.db.patch(threadId, {
     lastAuthorId: authorId,
-    lastBody: body || files.map((file) => file.name).join(", "),
+    lastBody: shown || files.map((file) => file.name).join(", "),
   });
 
   for (const userId of everyone) {

@@ -180,6 +180,9 @@ small {
     gap: 2px;
 
     &:first-child {
+      padding-left: 4px;
+    }
+    :root[data-desktop] &:first-child {
       padding-left: 74px;
     }
     &:last-child {
@@ -299,7 +302,9 @@ small {
     font-variant-numeric: tabular-nums;
   }
   & .profile {
+    gap: 6px;
     margin: 0 8px 9px;
+    padding-left: 6px;
     color: var(--text-2);
 
     &:hover {
