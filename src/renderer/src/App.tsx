@@ -9,7 +9,18 @@ import { List } from "./List";
 import { NewMessage, Search } from "./Palette";
 import { Settings } from "./Settings";
 import { Sidebar } from "./Sidebar";
-import { back, forward, go, setDialog, show, toggleSidebar, useUI, useView } from "./state";
+import {
+  back,
+  forward,
+  go,
+  resetScale,
+  scaleBy,
+  setDialog,
+  show,
+  toggleSidebar,
+  useUI,
+  useView,
+} from "./state";
 import { DraftView, Thread } from "./Thread";
 
 const BUCKET_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -54,6 +65,9 @@ function useShortcuts() {
   useShortcut("mod+[", back, { description: "Back" });
   useShortcut("mod+]", forward, { description: "Forward" });
   useShortcut("mod+\\", toggleSidebar, { description: "Show or hide the sidebar" });
+  useShortcut("mod+=", () => scaleBy(10), { description: "Larger thread text" });
+  useShortcut("mod+-", () => scaleBy(-10), { description: "Smaller thread text" });
+  useShortcut("mod+0", resetScale, { description: "Actual size" });
   useShortcut("mod+e", done, { description: "Mark done" });
   useShortcut("e", done, { description: "Mark done" });
   useShortcut("u", unread, { description: "Mark unread" });

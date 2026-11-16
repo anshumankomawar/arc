@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, parts, useMark, useMe, useNames, useSend, useThreads, type Id } from "./data";
 import { Identicon } from "./Identicon";
 import { MessageBox } from "./MessageBox";
-import { editDraft, go, removeDraft, type Draft } from "./state";
+import { editDraft, go, removeDraft, useUI, type Draft } from "./state";
 import { ago } from "./time";
 
 function Body({ body }: { body: string }) {
@@ -45,7 +45,7 @@ export function DraftView({ draft }: { draft: Draft }) {
   };
   return (
     <main className="thread">
-      <article>
+      <article style={{ zoom: `${useUI((ui) => ui.scale)}%` }}>
         <Compose
           key={draft.id}
           label="Draft"
@@ -84,7 +84,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
 
   return (
     <main className="thread">
-      <article>
+      <article style={{ zoom: `${useUI((ui) => ui.scale)}%` }}>
         {turns.map((turn) => (
           <section key={turn[0]._id} className="turn">
             <Identicon seed={turn[0].authorId} />

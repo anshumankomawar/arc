@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell, systemPreferences } from "electron";
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
@@ -35,6 +35,7 @@ function createWindow() {
     created.hide();
   });
   created.on("closed", () => (window = undefined));
+  created.webContents.on("did-finish-load", () => created.webContents.setZoomLevel(0));
 
   const home = process.env.ELECTRON_RENDERER_URL;
   const openOutside = (url: string) => void shell.openExternal(url);
@@ -114,6 +115,18 @@ app.on("activate", show);
 
 void app.whenReady().then(() => {
   nativeTheme.themeSource = "dark";
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      { role: "appMenu" },
+      { role: "fileMenu" },
+      { role: "editMenu" },
+      {
+        label: "View",
+        submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { role: "togglefullscreen" }],
+      },
+      { role: "windowMenu" },
+    ]),
+  );
   nativeTheme.on("updated", syncDockIcon);
   syncDockIcon();
   if (process.platform === "darwin")

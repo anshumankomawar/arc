@@ -20,6 +20,7 @@ type UI = {
   history: View[];
   at: number;
   sidebar: boolean;
+  scale: number;
   drafts: Draft[];
   dialog: Dialog | null;
   tab: string;
@@ -31,11 +32,12 @@ export const useUI = create<UI>()(
       history: [{ box: "inbox" }],
       at: 0,
       sidebar: true,
+      scale: 100,
       drafts: [],
       dialog: null,
       tab: "Workspace",
     }),
-    { name: "ui", partialize: ({ sidebar, drafts }) => ({ sidebar, drafts }) },
+    { name: "ui", partialize: ({ sidebar, scale, drafts }) => ({ sidebar, scale, drafts }) },
   ),
 );
 
@@ -62,6 +64,9 @@ export const forward = () =>
 
 export const setDialog = (dialog: Dialog | null, tab = "Workspace") => set({ dialog, tab });
 export const toggleSidebar = () => set(({ sidebar }) => ({ sidebar: !sidebar }));
+export const scaleBy = (step: number) =>
+  set(({ scale }) => ({ scale: Math.min(160, Math.max(80, scale + step)) }));
+export const resetScale = () => set({ scale: 100 });
 
 export const addDraft = (text: string) =>
   set(({ drafts }) => ({ drafts: [{ id: crypto.randomUUID(), text, at: Date.now() }, ...drafts] }));
