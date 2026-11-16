@@ -1,9 +1,23 @@
 import { useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
+import { Button } from "@ui-sdk/react/button";
+import { formatFileSize } from "@ui-sdk/react/file-input";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { createTokenInputController } from "@ui-sdk/react/token-input";
-import { useEffect, useRef, useState } from "react";
-import { api, parts, useMark, useMe, useNames, useSend, useThreads, type Id } from "./data";
+import { Fragment, useEffect, useRef, useState } from "react";
+import {
+  api,
+  parts,
+  useDownload,
+  useMark,
+  useMe,
+  useNames,
+  useSend,
+  useThreads,
+  type Attached,
+  type Id,
+} from "./data";
+import { Icon } from "./Icon";
 import { Identicon } from "./Identicon";
 import { MessageBox } from "./MessageBox";
 import { editDraft, go, removeDraft, useUI, type Draft } from "./state";
@@ -39,9 +53,9 @@ function Compose(props: Parameters<typeof MessageBox>[0]) {
 
 export function DraftView({ draft }: { draft: Draft }) {
   const start = useMutation(api.threads.start);
-  const send = async (body: string) => {
+  const send = async (body: string, files: Attached[]) => {
     removeDraft(draft.id);
-    go({ thread: await start({ body }) });
+    go({ thread: await start({ body, files }) });
   };
   return (
     <main className="thread">
@@ -52,7 +66,7 @@ export function DraftView({ draft }: { draft: Draft }) {
           mustMention
           placeholder="Write a message, @mention who it's for, ⌘↵ to send"
           defaultText={draft.text}
-          onSend={(body) => void send(body)}
+          onSend={(body, files) => void send(body, files)}
           onChange={(text) => editDraft(draft.id, text)}
         />
       </article>
@@ -66,6 +80,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   const { name } = useNames();
   const send = useSend();
   const mark = useMark();
+  const download = useDownload();
   const [reply] = useState(createTokenInputController);
   const turns = messages.reduce<(typeof messages)[]>((turns, message) => {
     if (turns.at(-1)?.[0].authorId === message.authorId) turns.at(-1)!.push(message);
@@ -94,9 +109,18 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
                 <time>{ago(turn[0]._creationTime)}</time>
               </div>
               {turn.map((message) => (
-                <p key={message._id} className={message === messages[0] ? "text title" : "text"}>
-                  <Body body={message.body} />
-                </p>
+                <Fragment key={message._id}>
+                  <p className={message === messages[0] ? "text title" : "text"}>
+                    <Body body={message.body} />
+                  </p>
+                  {message.files.map((file) => (
+                    <Button key={file._id} className="file" onClick={() => void download(file)}>
+                      <Icon name="attach" />
+                      <span className="clip">{file.name}</span>
+                      <small>{formatFileSize(file.size)}</small>
+                    </Button>
+                  ))}
+                </Fragment>
               ))}
             </div>
           </section>
@@ -106,7 +130,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
           input={reply}
           label="Reply"
           placeholder="Reply, @mention someone to bring them in, ⌘↵ to send"
-          onSend={(body) => void send({ threadId, body })}
+          onSend={(body, files) => void send({ threadId, body, files })}
         />
         <div ref={end} />
       </article>

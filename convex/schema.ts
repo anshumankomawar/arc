@@ -34,6 +34,17 @@ export default defineSchema({
     .index("thread", ["threadId"])
     .searchIndex("search", { searchField: "body", filterFields: ["workspaceId"] }),
 
+  files: defineTable({
+    workspaceId: v.id("workspaces"),
+    threadId: v.id("threads"),
+    messageId: v.id("messages"),
+    storageId: v.id("_storage"),
+    name: v.string(),
+    size: v.number(),
+  })
+    .index("thread", ["threadId"])
+    .index("storage", ["storageId"]),
+
   vectors: defineTable({
     workspaceId: v.id("workspaces"),
     threadId: v.id("threads"),

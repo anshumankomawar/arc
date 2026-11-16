@@ -7,7 +7,15 @@ import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { useAction, useMutation } from "convex/react";
 import { useQuery } from "convex-helpers/react/cache";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { api, useBuckets, useCopyInvite, useNames, useThreads, type Doc } from "./data";
+import {
+  api,
+  useBuckets,
+  useCopyInvite,
+  useNames,
+  useThreads,
+  type Attached,
+  type Doc,
+} from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
 import { addDraft, go, reset, setDialog, theme } from "./state";
@@ -184,9 +192,9 @@ export function NewMessage() {
   const keep = () => {
     if (written.current.trim()) addDraft(written.current);
   };
-  const send = async (body: string) => {
+  const send = async (body: string, files: Attached[]) => {
     setDialog(null);
-    go({ thread: await start({ body }) });
+    go({ thread: await start({ body, files }) });
   };
 
   return (
@@ -195,7 +203,7 @@ export function NewMessage() {
         label="New Message"
         mustMention
         placeholder="Write a message, @mention who it's for, ⌘↵ to send"
-        onSend={(body) => void send(body)}
+        onSend={(body, files) => void send(body, files)}
         onChange={(text) => (written.current = text)}
       />
     </Modal>

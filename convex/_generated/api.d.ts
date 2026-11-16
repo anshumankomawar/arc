@@ -10,6 +10,7 @@
 
 import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
+import type * as files from "../files.js";
 import type * as functions from "../functions.js";
 import type * as search from "../search.js";
 import type * as simulate from "../simulate.js";
@@ -26,6 +27,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   auth: typeof auth;
+  files: typeof files;
   functions: typeof functions;
   search: typeof search;
   simulate: typeof simulate;

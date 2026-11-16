@@ -1,3 +1,5 @@
+export const FILE_LIMIT = 15_000_000;
+
 const TOKEN = /\[\[(person|group):(\w+)\]\]/g;
 
 type Part = string | { kind: "person" | "group"; id: string };

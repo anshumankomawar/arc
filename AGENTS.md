@@ -18,7 +18,7 @@ What's already in use, and where:
 
 | For                                   | Component                                                   | In                           |
 | ------------------------------------- | ----------------------------------------------------------- | ---------------------------- |
-| Reply and New Message, with @mentions | Token Input, Trigger Menu                                   | `MessageBox.tsx`             |
+| Reply and New Message, with @mentions | Token Input, Trigger Menu, File Input                       | `MessageBox.tsx`             |
 | Mailboxes and the thread list         | Listbox                                                     | `Sidebar.tsx`, `List.tsx`    |
 | ⌘K, ⌘F and New Message                | Command, Dialog                                             | `Palette.tsx`                |
 | Right-click menus                     | Menu                                                        | `Menu.tsx`                   |
@@ -44,4 +44,6 @@ Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's 
   with no workspace yet must reach (`me`, `create`, `join`); they call `signedIn` themselves.
 - An action has no `ctx.me`: it reaches data only through those queries and mutations (`convex/search.ts`).
 - A message's delivery lives in `post` in `convex/threads.ts`. Change it with its tests, in `tests/`.
+- A file's bytes leave storage only through `download` in `convex/files.ts`, which checks membership. Never give a
+  client a storage URL (`ctx.storage.getUrl`): anyone holding one can fetch the file without signing in.
 - After adding or removing a dependency, restart `bun run dev`: a running dev server keeps its old bundle of them.

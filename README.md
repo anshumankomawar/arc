@@ -72,5 +72,6 @@ bun run build    # types, then the app
 ## Where things are
 
 - `convex/` is the backend: the schema, `threads.ts` (what a message does), `workspace.ts`, `auth.ts`, `ai.ts`
-  (sorting into buckets) and `search.ts` (search by meaning, Ask Arc).
+  (sorting into buckets), `search.ts` (search by meaning, Ask Arc) and `files.ts` (attachments: uploaded to Convex
+  storage, and downloaded only through a function that checks the caller is in the thread).
 - `src/main` is the Electron window. `src/renderer` is the interface, built from ui-sdk components (see `AGENTS.md`).

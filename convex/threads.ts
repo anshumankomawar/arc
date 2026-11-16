@@ -3,9 +3,17 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { membership, mutation, query, type Ctx } from "./functions";
-import { mentions, titleOf } from "./text";
+import { FILE_LIMIT, mentions, titleOf } from "./text";
 
-export async function post(ctx: MutationCtx & Ctx, threadId: Id<"threads">, body: string) {
+const attached = v.array(v.object({ storageId: v.id("_storage"), name: v.string() }));
+type Attached = typeof attached.type;
+
+export async function post(
+  ctx: MutationCtx & Ctx,
+  threadId: Id<"threads">,
+  body: string,
+  files: Attached = [],
+) {
   const { _id: authorId, workspaceId } = ctx.me;
   const activeAt = Date.now();
 
@@ -38,6 +46,22 @@ export async function post(ctx: MutationCtx & Ctx, threadId: Id<"threads">, body
 
   const messageId = await ctx.db.insert("messages", { workspaceId, threadId, authorId, body });
   await ctx.scheduler.runAfter(0, internal.search.index, { messageId });
+  for (const { storageId, name } of files) {
+    const stored = await ctx.db.system.get(storageId);
+    const taken = await ctx.db
+      .query("files")
+      .withIndex("storage", (q) => q.eq("storageId", storageId))
+      .first();
+    if (!stored || taken || stored.size > FILE_LIMIT) throw new ConvexError("Not found");
+    await ctx.db.insert("files", {
+      workspaceId,
+      threadId,
+      messageId,
+      storageId,
+      name,
+      size: stored.size,
+    });
+  }
   await ctx.db.patch(threadId, { lastAuthorId: authorId, lastBody: body });
 
   for (const userId of everyone) {
@@ -82,10 +106,20 @@ export const messages = query({
   args: { threadId: v.id("threads") },
   handler: async (ctx, { threadId }) => {
     await membership(ctx, threadId);
-    return ctx.db
+    const messages = await ctx.db
       .query("messages")
       .withIndex("thread", (q) => q.eq("threadId", threadId))
       .collect();
+    const files = await ctx.db
+      .query("files")
+      .withIndex("thread", (q) => q.eq("threadId", threadId))
+      .collect();
+    return messages.map((message) => ({
+      ...message,
+      files: files
+        .filter((file) => file.messageId === message._id)
+        .map(({ _id, name, size }) => ({ _id, name, size })),
+    }));
   },
 });
 
@@ -110,27 +144,27 @@ export const search = query({
   },
 });
 
-export async function begin(ctx: MutationCtx & Ctx, body: string) {
+export async function begin(ctx: MutationCtx & Ctx, body: string, files?: Attached) {
   const threadId = await ctx.db.insert("threads", {
     workspaceId: ctx.me.workspaceId,
     title: titleOf(body),
     lastAuthorId: ctx.me._id,
     lastBody: body,
   });
-  await post(ctx, threadId, body);
+  await post(ctx, threadId, body, files);
   return threadId;
 }
 
 export const start = mutation({
-  args: { body: v.string() },
-  handler: (ctx, { body }) => begin(ctx, body),
+  args: { body: v.string(), files: v.optional(attached) },
+  handler: (ctx, { body, files }) => begin(ctx, body, files),
 });
 
 export const send = mutation({
-  args: { threadId: v.id("threads"), body: v.string() },
-  handler: async (ctx, { threadId, body }) => {
+  args: { threadId: v.id("threads"), body: v.string(), files: v.optional(attached) },
+  handler: async (ctx, { threadId, body, files }) => {
     await membership(ctx, threadId);
-    await post(ctx, threadId, body);
+    await post(ctx, threadId, body, files);
   },
 });
 

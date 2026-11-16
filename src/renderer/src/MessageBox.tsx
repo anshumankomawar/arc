@@ -1,4 +1,14 @@
 import {
+  createFileInputController,
+  FileInput,
+  FileInputDropzone,
+  FileInputItem,
+  FileInputItemRemove,
+  FileInputList,
+  FileInputTrigger,
+  formatFileSize,
+} from "@ui-sdk/react/file-input";
+import {
   createTokenInputController,
   fromText,
   toText,
@@ -15,7 +25,18 @@ import {
   type TriggerMenuDataItem,
 } from "@ui-sdk/react/trigger-menu";
 import { useMemo, useState } from "react";
-import { mentions, parts, useGroups, useMe, useNames, usePeople } from "./data";
+import {
+  FILE_LIMIT,
+  mentions,
+  parts,
+  useGroups,
+  useMe,
+  useNames,
+  usePeople,
+  useUpload,
+  type Attached,
+} from "./data";
+import { Icon } from "./Icon";
 import { Identicon } from "./Identicon";
 
 export function MessageBox(props: {
@@ -24,7 +45,7 @@ export function MessageBox(props: {
   defaultText?: string;
   input?: ReturnType<typeof createTokenInputController>;
   mustMention?: boolean;
-  onSend: (body: string) => void;
+  onSend: (body: string, files: Attached[]) => void;
   onChange?: (text: string) => void;
 }) {
   const me = useMe();
@@ -33,7 +54,23 @@ export function MessageBox(props: {
   const { name } = useNames();
   const [own] = useState(createTokenInputController);
   const input = props.input ?? own;
-  const [alone, setAlone] = useState(false);
+  const [files] = useState(createFileInputController);
+  const upload = useUpload();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const send = async (body: string) => {
+    setBusy(true);
+    setNote(files.getValue().length ? "Uploading" : "");
+    try {
+      props.onSend(body, await Promise.all(files.getValue().map(upload)));
+      input.clear();
+      files.clear();
+      setNote("");
+    } catch {
+      setNote("A file didn't upload. Send again to retry.");
+    }
+    setBusy(false);
+  };
   const reaches = (body: string) =>
     mentions(body, "person").some((id) => id !== me?._id) ||
     mentions(body, "group").some((id) =>
@@ -60,52 +97,74 @@ export function MessageBox(props: {
   ];
 
   return (
-    <>
-      <TokenInput
-        controller={input}
-        codec={codec}
-        defaultValue={fromText(props.defaultText ?? "", codec)}
-        submitShortcut="mod+enter"
-        onValueChange={(value) => {
-          setAlone(false);
-          props.onChange?.(toText(value, codec));
-        }}
-        onSubmit={(value) => {
-          const body = toText(value, codec).trim();
-          if (!body) return;
-          if (props.mustMention && !reaches(body)) return setAlone(true);
-          props.onSend(body);
-          input.clear();
-        }}
-        renderToken={(token) => (
-          <TokenInputToken className="mention">@{token.label}</TokenInputToken>
-        )}
-      >
-        <TokenInputEditor
-          className="editor"
-          aria-label={props.label}
-          placeholder={props.placeholder}
-        />
-        <TriggerMenu triggers={[{ char: "@", type: "mention", items: mentionable }]}>
-          <TriggerMenuContent className="panel options" sideOffset={6}>
-            <TriggerMenuList>
-              {(state) =>
-                (state.items as TriggerMenuDataItem<string>[]).map((item) => (
-                  <TriggerMenuItem key={item.value} value={item.value} label={item.label}>
-                    <Identicon seed={item.value.split(":")[1]} size={18} />
-                    {item.label}
-                  </TriggerMenuItem>
-                ))
-              }
-            </TriggerMenuList>
-          </TriggerMenuContent>
-        </TriggerMenu>
-      </TokenInput>
-      {alone && (
+    <FileInput
+      multiple
+      maxSize={FILE_LIMIT}
+      controller={files}
+      onReject={() => setNote(`Files can be up to ${formatFileSize(FILE_LIMIT)}.`)}
+    >
+      <FileInputDropzone>
+        <TokenInput
+          controller={input}
+          codec={codec}
+          defaultValue={fromText(props.defaultText ?? "", codec)}
+          submitShortcut="mod+enter"
+          onValueChange={(value) => {
+            setNote("");
+            props.onChange?.(toText(value, codec));
+          }}
+          onSubmit={(value) => {
+            const body = toText(value, codec).trim();
+            if (!body || busy) return;
+            if (props.mustMention && !reaches(body))
+              return setNote("@mention someone to send this to.");
+            void send(body);
+          }}
+          renderToken={(token) => (
+            <TokenInputToken className="mention">@{token.label}</TokenInputToken>
+          )}
+        >
+          <TokenInputEditor
+            className="editor"
+            aria-label={props.label}
+            placeholder={props.placeholder}
+          />
+          <TriggerMenu triggers={[{ char: "@", type: "mention", items: mentionable }]}>
+            <TriggerMenuContent className="panel options" sideOffset={6}>
+              <TriggerMenuList>
+                {(state) =>
+                  (state.items as TriggerMenuDataItem<string>[]).map((item) => (
+                    <TriggerMenuItem key={item.value} value={item.value} label={item.label}>
+                      <Identicon seed={item.value.split(":")[1]} size={18} />
+                      {item.label}
+                    </TriggerMenuItem>
+                  ))
+                }
+              </TriggerMenuList>
+            </TriggerMenuContent>
+          </TriggerMenu>
+        </TokenInput>
+        <div className="attach">
+          <FileInputTrigger aria-label="Attach files">
+            <Icon name="attach" />
+          </FileInputTrigger>
+          <FileInputList aria-label="Attachments">
+            <FileInputItem>
+              {({ file }) => (
+                <>
+                  {file.name} <small>{formatFileSize(file.size)}</small>
+                  <FileInputItemRemove>×</FileInputItemRemove>
+                </>
+              )}
+            </FileInputItem>
+          </FileInputList>
+        </div>
+      </FileInputDropzone>
+      {note && (
         <p className="alone" role="alert">
-          @mention someone to send this to.
+          {note}
         </p>
       )}
-    </>
+    </FileInput>
   );
 }

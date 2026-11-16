@@ -1,5 +1,5 @@
 import { confirm } from "@ui-sdk/react/alert-dialog";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import { useQuery } from "convex-helpers/react/cache";
 import { useMemo } from "react";
@@ -9,9 +9,10 @@ import { plain } from "../../../convex/text";
 import type { Box } from "./state";
 
 export { api };
-export { mentions, parts } from "../../../convex/text";
+export { FILE_LIMIT, mentions, parts } from "../../../convex/text";
 export type { Doc, Id };
 export type Row = ReturnType<typeof useThreads>[number];
+export type Attached = { storageId: Id<"_storage">; name: string };
 
 const EMPTY: never[] = [];
 
@@ -29,6 +30,24 @@ export function useRemoveBucket() {
       confirmLabel: "Delete",
     });
     if (sure) await remove({ id: _id });
+  };
+}
+export function useUpload() {
+  const uploadUrl = useMutation(api.files.uploadUrl);
+  return async (file: File): Promise<Attached> => {
+    const response = await fetch(await uploadUrl(), { method: "POST", body: file });
+    if (!response.ok) throw new Error(`Upload answered ${response.status}`);
+    return { storageId: (await response.json()).storageId, name: file.name };
+  };
+}
+export function useDownload() {
+  const download = useAction(api.files.download);
+  return async ({ _id, name }: { _id: Id<"files">; name: string }) => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([await download({ id: _id })]));
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
   };
 }
 export const usePeople = () => useQuery(api.workspace.people) ?? EMPTY;
@@ -94,6 +113,7 @@ export const useSend = () =>
       threadId,
       authorId: me._id,
       body,
+      files: [],
     };
     store.setQuery(api.threads.messages, { threadId }, [...messages, sent]);
     patchRow(store, threadId, { lastAuthorId: me._id, lastBody: body, activeAt: Date.now() });
