@@ -128,9 +128,6 @@ export function App() {
           <kbd>⌘K</kbd>
         </ToolbarButton>
         <ToolbarGroup>
-          <ToolbarButton aria-label="New Message" onClick={() => setDialog("new")}>
-            <Icon name="compose" />
-          </ToolbarButton>
           <ToolbarButton aria-label="Settings" onClick={() => setDialog("settings")}>
             <Icon name="settings" />
           </ToolbarButton>

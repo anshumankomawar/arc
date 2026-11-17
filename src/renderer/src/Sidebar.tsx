@@ -118,7 +118,12 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <Switcher />
+      <div className="head">
+        <Switcher />
+        <Button className="compose" aria-label="New Message" onClick={() => setDialog("new")}>
+          <Icon name="compose" />
+        </Button>
+      </div>
       <Listbox
         aria-label="Mailboxes"
         value={view.box}

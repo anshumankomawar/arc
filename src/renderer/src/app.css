@@ -311,14 +311,32 @@ small {
     font-size: 11px;
     font-variant-numeric: tabular-nums;
   }
-  & .switcher {
+  & .head {
     display: flex;
-    gap: 6px;
+    gap: 2px;
     align-items: center;
     flex-shrink: 0;
     margin: 9px 8px 0;
+  }
+  & .switcher {
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
     font-weight: 600;
-
+  }
+  & .compose {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    color: var(--text-2);
+  }
+  & .switcher,
+  & .compose {
     &:hover,
     &[data-open] {
       background: var(--hover);
