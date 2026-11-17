@@ -152,7 +152,11 @@ export function MessageBox(props: {
             const body = toText(value, codec).trim();
             if ((!body && !files.getValue().length) || busy) return;
             if (props.mustMention && !reaches(body))
-              return setNote("@mention someone to send this to.");
+              return setNote(
+                mentions(body, "group").length
+                  ? "Nobody else is in that group yet. Add people to it in Settings."
+                  : "@mention someone to send this to.",
+              );
             void send(body);
           }}
           renderToken={(token) => (

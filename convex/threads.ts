@@ -140,8 +140,9 @@ export const list = query({
       .take(500);
     return Promise.all(
       rows.map(async ({ threadId, activeAt, inbox, unread, bucketId }) => {
-        const { title, lastAuthorId, lastBody } = (await ctx.db.get(threadId))!;
-        return { threadId, activeAt, inbox, unread, bucketId, title, lastAuthorId, lastBody };
+        const { title, ownerId, lastAuthorId, lastBody } = (await ctx.db.get(threadId))!;
+        const sent = ownerId === ctx.me._id;
+        return { threadId, activeAt, inbox, unread, bucketId, title, sent, lastAuthorId, lastBody };
       }),
     );
   },
@@ -207,6 +208,7 @@ export async function begin(ctx: MutationCtx & Ctx, body: string, files?: Attach
   const threadId = await ctx.db.insert("threads", {
     workspaceId: ctx.me.workspaceId,
     title: titleOf(body),
+    ownerId: ctx.me._id,
     lastAuthorId: ctx.me._id,
     lastBody: body,
   });

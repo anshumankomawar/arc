@@ -43,6 +43,7 @@ export function Sidebar() {
         onValueChange={(box) => box && go({ box, thread: undefined })}
       >
         {row("all", "All Threads", "archive")}
+        {row("sent", "Sent", "sent")}
         {row("drafts", "Drafts", "draft")}
         {row("inbox", "Buckets", "inbox", count("inbox"))}
         {buckets.map((bucket) =>

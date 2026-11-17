@@ -1,6 +1,18 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@ui-sdk/react/button";
-import { Checkbox, CheckboxGroup } from "@ui-sdk/react/checkbox";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChipRemove,
+  ComboboxChips,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxList,
+  ComboboxValue,
+} from "@ui-sdk/react/combobox";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { Input } from "@ui-sdk/react/input";
 import { usePreference } from "@ui-sdk/react/preferences";
@@ -77,7 +89,60 @@ function Bucket({ bucket }: { bucket?: Doc<"buckets"> }) {
   );
 }
 
-function Group({ group }: { group?: Doc<"groups"> }) {
+export function Members(props: {
+  of: string;
+  people: { _id: Id<"users">; name: string }[];
+  defaultValue: Id<"users">[];
+  autoFocus?: boolean;
+  onChange: (userIds: Id<"users">[]) => void;
+}) {
+  return (
+    <Combobox
+      multiple
+      autoHighlight
+      defaultValue={props.defaultValue}
+      itemToLabel={(id) => props.people.find((person) => person._id === id)?.name ?? ""}
+      onValueChange={(userIds, details) =>
+        details.reason !== "reset" && props.onChange(userIds as Id<"users">[])
+      }
+    >
+      <ComboboxChips className="chips">
+        <ComboboxValue>
+          {(state) =>
+            (state.value as Id<"users">[]).map((id, index) => (
+              <ComboboxChip key={id} value={id}>
+                {state.labels[index]}
+                <ComboboxChipRemove aria-label={`Remove ${state.labels[index]} from ${props.of}`}>
+                  ×
+                </ComboboxChipRemove>
+              </ComboboxChip>
+            ))
+          }
+        </ComboboxValue>
+        <ComboboxInput
+          aria-label={`Add people to ${props.of}`}
+          placeholder="Add people"
+          autoFocus={props.autoFocus}
+        />
+      </ComboboxChips>
+      <ComboboxContent className="panel menu" align="start" sideOffset={4}>
+        <ComboboxEmpty>Nobody by that name</ComboboxEmpty>
+        <ComboboxList>
+          {props.people.map((person) => (
+            <ComboboxItem key={person._id} value={person._id} label={person.name}>
+              <Identicon seed={person._id} size={16} />
+              <span className="clip">{person.name}</span>
+              <ComboboxItemIndicator>✓</ComboboxItemIndicator>
+            </ComboboxItem>
+          ))}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+
+function Group(props: { group?: Doc<"groups">; added?: boolean; onAdd?: (name: string) => void }) {
+  const { group } = props;
   const people = usePeople();
   const save = useMutation(api.workspace.saveGroup);
   const remove = useMutation(api.workspace.removeGroup);
@@ -88,9 +153,9 @@ function Group({ group }: { group?: Doc<"groups"> }) {
       onBlur={saveOnLeave}
       action={async (form) => {
         const name = String(form.get("name")).trim();
-        const userIds = form.getAll("userIds") as Id<"users">[];
-        if (!name || (name === group?.name && userIds.join() === group.userIds.join())) return;
-        await save({ id: group?._id, name, userIds });
+        if (!name || name === group?.name) return;
+        props.onAdd?.(name);
+        await save({ id: group?._id, name, userIds: group?.userIds ?? [] });
       }}
     >
       <Input
@@ -102,22 +167,13 @@ function Group({ group }: { group?: Doc<"groups"> }) {
       />
       {group && (
         <>
-          <CheckboxGroup
-            name="userIds"
-            className="chips"
-            aria-label={`People in ${of}`}
+          <Members
+            of={of}
+            people={people}
             defaultValue={group.userIds}
-            onValueChange={(userIds, details) =>
-              details.reason !== "reset" &&
-              void save({ id: group._id, name: group.name, userIds: userIds as Id<"users">[] })
-            }
-          >
-            {people.map((person) => (
-              <Checkbox key={person._id} value={person._id}>
-                {person.name}
-              </Checkbox>
-            ))}
-          </CheckboxGroup>
+            autoFocus={props.added}
+            onChange={(userIds) => void save({ id: group._id, name: group.name, userIds })}
+          />
           <Button className="quiet" onClick={() => void remove({ id: group._id })}>
             Delete
           </Button>
@@ -136,6 +192,7 @@ export function Settings() {
   const shown = usePreference(previews).value;
   const copyInvite = useCopyInvite();
   const [copied, setCopied] = useState(false);
+  const [added, setAdded] = useState("");
   const { signOut } = useAuthActions();
 
   return (
@@ -217,11 +274,14 @@ export function Settings() {
             <Bucket key={buckets.length} />
           </Section>
 
-          <Section title="Groups" hint="Mention a group to bring everyone in it into a thread.">
+          <Section
+            title="Groups"
+            hint="Mention a group to bring everyone in it into a thread. A new group starts empty."
+          >
             {groups.map((group) => (
-              <Group key={group._id} group={group} />
+              <Group key={group._id} group={group} added={group.name === added} />
             ))}
-            <Group key={groups.length} />
+            <Group key={groups.length} onAdd={setAdded} />
           </Section>
         </Tabs>
       </DialogContent>

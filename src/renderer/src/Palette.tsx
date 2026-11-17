@@ -100,6 +100,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const commands = [
     command("Write a new message", () => setDialog("new"), window.desktop && "⌘N"),
     command("Go to All Threads", () => go({ box: "all", thread: undefined })),
+    command("Go to Sent", () => go({ box: "sent", thread: undefined })),
     command("Go to Drafts", () => go({ box: "drafts", thread: undefined })),
     command("Go to Buckets", () => go({ box: "inbox", thread: undefined })),
     ...buckets.map((bucket, index) =>

@@ -21,6 +21,7 @@ export default defineSchema({
   threads: defineTable({
     workspaceId: v.id("workspaces"),
     title: v.string(),
+    ownerId: v.optional(v.id("users")),
     lastAuthorId: v.id("users"),
     lastBody: v.string(),
   }),

@@ -24,6 +24,19 @@ test("a new thread reaches who it mentions, not who wrote it", async () => {
   expect(await linus.as.query(api.threads.list)).toEqual([]);
 });
 
+test("sent lists the threads you started", async () => {
+  const { ada, grace } = await setup();
+  const sent = async (who: typeof ada) =>
+    (await who.as.query(api.threads.list)).filter((row) => row.sent).map((row) => row.title);
+  const threadId = await ada.as.mutation(api.threads.start, {
+    body: `${personToken(grace._id)} lunch?`,
+  });
+  await grace.as.mutation(api.threads.send, { threadId, body: "yes" });
+
+  expect(await sent(ada)).toEqual(["lunch?"]);
+  expect(await sent(grace)).toEqual([]);
+});
+
 test("a thread needs someone besides its author", async () => {
   const { ada, grace } = await setup();
   const start = (body: string) => ada.as.mutation(api.threads.start, { body });

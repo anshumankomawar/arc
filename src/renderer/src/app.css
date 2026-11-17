@@ -20,6 +20,7 @@
   --folder: light-dark(#eabd08, #fee78a);
   --archive: light-dark(#15803d, #86efac);
   --draft: light-dark(#ae55f7, #ddb4fe);
+  --sent: light-dark(#0d9488, #5eead4);
   --avatar-ring: light-dark(rgb(0 0 0 / 14%), transparent);
 }
 :root[data-theme="light"] {
@@ -737,8 +738,18 @@ small {
   border-radius: 9px;
   font-size: 12px;
 
-  & [data-slot="menu-item"] {
+  & [data-slot="combobox-list"] {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  & [data-slot="combobox-empty"] {
+    padding: 3px 10px;
+    color: var(--text-3);
+  }
+  & [data-slot="menu-item"],
+  & [data-slot="combobox-item"] {
     display: flex;
+    gap: 6px;
     align-items: center;
     height: 22px;
     margin: 0 3px;
@@ -850,14 +861,42 @@ small {
       opacity: 1;
     }
   }
+  & .row:has(.chips) {
+    align-items: flex-start;
+  }
   & .chips {
     display: flex;
     flex: 1;
     flex-wrap: wrap;
     gap: 4px;
+    align-items: center;
+    min-width: 0;
 
-    & button:not([data-checked]) {
+    & [data-slot="combobox-chip"] {
+      display: flex;
+      align-items: center;
+      height: 26px;
+      padding-left: 9px;
+      border-radius: 13px;
+      background: var(--selected);
+      white-space: nowrap;
+    }
+    & [data-slot="combobox-chip-remove"] {
+      width: 22px;
+      padding: 0;
+      border: 0;
       color: var(--text-3);
+      background: none;
+      text-align: center;
+
+      &:hover,
+      &:focus-visible {
+        color: var(--text);
+      }
+    }
+    & input {
+      flex: 1 0 90px;
+      margin: 0;
     }
   }
   & [data-slot="segmented-control"] {

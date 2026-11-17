@@ -110,7 +110,9 @@ export function useNames() {
 export const inBox = (rows: Row[], box: Box) =>
   box === "all"
     ? rows
-    : rows.filter((row) => row.inbox && (box === "inbox" ? row.bucketId : row.bucketId === box));
+    : box === "sent"
+      ? rows.filter((row) => row.sent)
+      : rows.filter((row) => row.inbox && (box === "inbox" ? row.bucketId : row.bucketId === box));
 
 export function sections(rows: Row[], box: Box, buckets: Doc<"buckets">[]) {
   const listed = inBox(rows, box);
