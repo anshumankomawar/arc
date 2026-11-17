@@ -1,6 +1,7 @@
 import { useSignInWithGoogle } from "@convex-dev/auth/methods/google/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@ui-sdk/react/button";
+import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { Field, FieldLabel } from "@ui-sdk/react/field";
 import { Input } from "@ui-sdk/react/input";
 import {
@@ -10,9 +11,9 @@ import {
 } from "@ui-sdk/react/segmented-control";
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
-import { api } from "./data";
+import { api, useInvitations } from "./data";
 import { Icon } from "./Icon";
-import { reset } from "./state";
+import { reset, setDialog, switched, useUI } from "./state";
 
 const loaded = Promise.race([
   Promise.all([
@@ -96,45 +97,85 @@ export function SignIn() {
   );
 }
 
-export function Start() {
+function Choice(props: { mode: string }) {
   const create = useMutation(api.workspace.create);
   const join = useMutation(api.workspace.join);
-  const { signOut } = useAuthActions();
-  const [mode, setMode] = useState("start");
+  const [mode, setMode] = useState(props.mode);
   const [failed, setFailed] = useState(false);
   const joining = mode === "join";
   const label = joining ? "Invite link" : "Workspace name";
   const enter = async (text: string) => {
-    if (joining) setFailed(!(await join({ link: text })));
-    else await create({ name: text.trim() });
+    if (!joining) return void (await create({ name: text }), switched(), setDialog("settings"));
+    const joined = await join({ link: text });
+    setFailed(!joined);
+    if (joined) switched();
   };
+
+  return (
+    <>
+      <p>
+        {joining
+          ? "Paste the invite link a teammate sent you."
+          : "Start a workspace for your team."}
+      </p>
+      <SegmentedControl
+        aria-label="Start or join"
+        value={mode}
+        onValueChange={(next) => (setMode(next ?? mode), setFailed(false))}
+      >
+        <SegmentedControlIndicator />
+        <SegmentedControlItem value="start">Start</SegmentedControlItem>
+        <SegmentedControlItem value="join">Join</SegmentedControlItem>
+      </SegmentedControl>
+      <form action={(form) => enter(String(form.get("text")))}>
+        <Field key={mode} name="text">
+          <FieldLabel className="hidden">{label}</FieldLabel>
+          <Input placeholder={label} required autoFocus />
+        </Field>
+        <Button type="submit">{joining ? "Join Workspace" : "Create Workspace"}</Button>
+      </form>
+      {failed && <p role="alert">That link doesn't lead to a workspace.</p>}
+    </>
+  );
+}
+
+export function AddWorkspace() {
+  return (
+    <Dialog open onOpenChange={(open) => !open && setDialog(null)}>
+      <DialogContent className="panel welcome adding">
+        <div>
+          <DialogTitle render={<h1 />}>Add a workspace</DialogTitle>
+          <Choice mode={useUI.getState().tab} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function Start() {
+  const invitations = useInvitations();
+  const accept = useMutation(api.workspace.accept);
+  const decline = useMutation(api.workspace.decline);
+  const { signOut } = useAuthActions();
 
   return (
     <main className="welcome">
       <div>
         <h1>Welcome to Arc</h1>
-        <p>
-          {joining
-            ? "Paste the invite link a teammate sent you."
-            : "Start a workspace for your team."}
-        </p>
-        <SegmentedControl
-          aria-label="Start or join"
-          value={mode}
-          onValueChange={(next) => (setMode(next ?? mode), setFailed(false))}
-        >
-          <SegmentedControlIndicator />
-          <SegmentedControlItem value="start">Start</SegmentedControlItem>
-          <SegmentedControlItem value="join">Join</SegmentedControlItem>
-        </SegmentedControl>
-        <form action={(form) => enter(String(form.get("text")))}>
-          <Field key={mode} name="text">
-            <FieldLabel className="hidden">{label}</FieldLabel>
-            <Input placeholder={label} required autoFocus />
-          </Field>
-          <Button type="submit">{joining ? "Join Workspace" : "Create Workspace"}</Button>
-        </form>
-        {failed && <p role="alert">That link doesn't lead to a workspace.</p>}
+        {invitations.map((invitation) => (
+          <section key={invitation._id} className="invitation">
+            <p>
+              {invitation.from} invited you to {invitation.workspace}.
+            </p>
+            <Button onClick={() => void accept({ id: invitation._id })}>
+              Join {invitation.workspace}
+            </Button>
+            <Button className="link" onClick={() => void decline({ id: invitation._id })}>
+              Decline
+            </Button>
+          </section>
+        ))}
+        <Choice mode="start" />
         <Button className="link" onClick={() => void signOut().then(reset)}>
           Sign Out
         </Button>

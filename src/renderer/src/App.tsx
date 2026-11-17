@@ -8,6 +8,7 @@ import { Icon } from "./Icon";
 import { List } from "./List";
 import { NewMessage, Search } from "./Palette";
 import { Settings } from "./Settings";
+import { AddWorkspace } from "./SignIn";
 import { Sidebar } from "./Sidebar";
 import {
   back,
@@ -163,6 +164,7 @@ export function App() {
       <OverlayHost />
       {dialog === "new" && <NewMessage />}
       {dialog === "settings" && <Settings />}
+      {dialog === "workspace" && <AddWorkspace />}
       {(dialog === "search" || dialog === "find") && <Search threadsOnly={dialog === "find"} />}
     </>
   );

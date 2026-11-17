@@ -1,22 +1,140 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { mutation as rawMutation, query as rawQuery, type QueryCtx } from "./_generated/server";
-import { mutation, query, signedIn } from "./functions";
+import type { Doc, Id } from "./_generated/dataModel";
+import {
+  internalMutation,
+  mutation as rawMutation,
+  query as rawQuery,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
+import { memberOf, mutation, query, signedIn, type Ctx } from "./functions";
 
-export const me = rawQuery({
-  args: {},
-  handler: async (ctx) => {
-    const me = await signedIn(ctx);
-    const workspace = me.workspaceId && (await ctx.db.get(me.workspaceId));
-    return { ...me, workspace: workspace?.name };
-  },
-});
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const membershipsOf = (ctx: QueryCtx, userId: Id<"users">) =>
+  ctx.db
+    .query("memberships")
+    .withIndex("user", (q) => q.eq("userId", userId))
+    .collect();
+
+const membersIn = async (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
+  (
+    await ctx.db
+      .query("memberships")
+      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect()
+  ).sort((a, b) => a._creationTime - b._creationTime);
+
+const invitationTo = (ctx: QueryCtx, workspaceId: Id<"workspaces">, email: string) =>
+  ctx.db
+    .query("invitations")
+    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId).eq("email", email))
+    .unique();
 
 const invitedTo = (ctx: QueryCtx, invite: string) =>
   ctx.db
     .query("workspaces")
     .withIndex("invite", (q) => q.eq("invite", invite))
     .unique();
+
+const linkTo = (invite: string) => `${process.env.SITE_URL}/join/${invite}`;
+
+async function owner(ctx: Ctx) {
+  if ((await memberOf(ctx, ctx.me.workspaceId, ctx.me._id))?.role !== "owner")
+    throw new ConvexError("Only an owner can do that");
+}
+
+async function enter(
+  ctx: MutationCtx,
+  me: Doc<"users">,
+  workspaceId: Id<"workspaces">,
+  role: "owner" | "member" = "member",
+) {
+  if (!(await memberOf(ctx, workspaceId, me._id)))
+    await ctx.db.insert("memberships", { userId: me._id, workspaceId, role });
+  const invitation = await invitationTo(ctx, workspaceId, me.email.toLowerCase());
+  if (invitation) await ctx.db.delete(invitation._id);
+  await ctx.db.patch(me._id, { workspaceId });
+}
+
+async function moveOut(ctx: MutationCtx, userId: Id<"users">, workspaceId: Id<"workspaces">) {
+  if ((await ctx.db.get(userId))?.workspaceId !== workspaceId) return;
+  const [next] = await membershipsOf(ctx, userId);
+  await ctx.db.patch(userId, { workspaceId: next?.workspaceId });
+}
+
+async function remove(ctx: MutationCtx, workspaceId: Id<"workspaces">) {
+  for (const row of await membersIn(ctx, workspaceId)) {
+    await ctx.db.delete(row._id);
+    await moveOut(ctx, row.userId, workspaceId);
+  }
+  const invitations = await ctx.db
+    .query("invitations")
+    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+  for (const invitation of invitations) await ctx.db.delete(invitation._id);
+  await ctx.db.delete(workspaceId);
+  await ctx.scheduler.runAfter(0, internal.workspace.purge, { workspaceId });
+}
+
+async function depart(ctx: MutationCtx, workspaceId: Id<"workspaces">, userId: Id<"users">) {
+  const rows = await membersIn(ctx, workspaceId);
+  const leaving = rows.find((row) => row.userId === userId);
+  if (!leaving) throw new ConvexError("Not found");
+  const rest = rows.filter((row) => row !== leaving);
+  if (!rest.length) return remove(ctx, workspaceId);
+  await ctx.db.delete(leaving._id);
+  if (!rest.some((row) => row.role === "owner")) await ctx.db.patch(rest[0]._id, { role: "owner" });
+  await moveOut(ctx, userId, workspaceId);
+}
+
+export const me = rawQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { workspaceId, ...me } = await signedIn(ctx);
+    const member = workspaceId && (await memberOf(ctx, workspaceId, me._id));
+    const workspace = member && (await ctx.db.get(member.workspaceId));
+    return {
+      ...me,
+      workspaceId: member?.workspaceId,
+      workspace: workspace?.name,
+      role: member?.role,
+    };
+  },
+});
+
+export const workspaces = rawQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await membershipsOf(ctx, (await signedIn(ctx))._id);
+    return Promise.all(
+      rows.map(async (row) => ({
+        _id: row.workspaceId,
+        name: (await ctx.db.get(row.workspaceId))!.name,
+        people: (await membersIn(ctx, row.workspaceId)).length,
+      })),
+    );
+  },
+});
+
+export const invitations = rawQuery({
+  args: {},
+  handler: async (ctx) => {
+    const me = await signedIn(ctx);
+    const rows = await ctx.db
+      .query("invitations")
+      .withIndex("email", (q) => q.eq("email", me.email.toLowerCase()))
+      .collect();
+    return Promise.all(
+      rows.map(async (row) => ({
+        _id: row._id,
+        workspace: (await ctx.db.get(row.workspaceId))!.name,
+        from: (await ctx.db.get(row.invitedBy))?.name ?? "Someone",
+      })),
+    );
+  },
+});
 
 export const invited = rawQuery({
   args: { invite: v.string() },
@@ -26,9 +144,9 @@ export const invited = rawQuery({
 export const create = rawMutation({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
+    if (!name.trim()) throw new ConvexError("A workspace needs a name");
     const me = await signedIn(ctx);
-    if (me.workspaceId) throw new ConvexError("Already in a workspace");
-    await ctx.db.patch(me._id, { workspaceId: await ctx.db.insert("workspaces", { name }) });
+    await enter(ctx, me, await ctx.db.insert("workspaces", { name: name.trim() }), "owner");
   },
 });
 
@@ -36,11 +154,39 @@ export const join = rawMutation({
   args: { link: v.string() },
   handler: async (ctx, { link }) => {
     const me = await signedIn(ctx);
-    if (me.workspaceId) throw new ConvexError("Already in a workspace");
     const invite = link.trim().split("/").pop();
     const workspace = invite && (await invitedTo(ctx, invite));
-    if (workspace) await ctx.db.patch(me._id, { workspaceId: workspace._id });
+    if (workspace) await enter(ctx, me, workspace._id);
     return !!workspace;
+  },
+});
+
+export const accept = rawMutation({
+  args: { id: v.id("invitations") },
+  handler: async (ctx, { id }) => {
+    const me = await signedIn(ctx);
+    const invitation = await ctx.db.get(id);
+    if (invitation?.email !== me.email.toLowerCase()) throw new ConvexError("Not found");
+    await enter(ctx, me, invitation.workspaceId);
+  },
+});
+
+export const decline = rawMutation({
+  args: { id: v.id("invitations") },
+  handler: async (ctx, { id }) => {
+    const me = await signedIn(ctx);
+    if ((await ctx.db.get(id))?.email !== me.email.toLowerCase())
+      throw new ConvexError("Not found");
+    await ctx.db.delete(id);
+  },
+});
+
+export const open = rawMutation({
+  args: { id: v.id("workspaces") },
+  handler: async (ctx, { id }) => {
+    const me = await signedIn(ctx);
+    if (!(await memberOf(ctx, id, me._id))) throw new ConvexError("Not found");
+    await ctx.db.patch(me._id, { workspaceId: id });
   },
 });
 
@@ -50,17 +196,140 @@ export const inviteLink = mutation({
     const workspace = (await ctx.db.get(ctx.me.workspaceId))!;
     const invite = workspace.invite ?? crypto.randomUUID();
     if (!workspace.invite) await ctx.db.patch(workspace._id, { invite });
-    return `${process.env.SITE_URL}/join/${invite}`;
+    return linkTo(invite);
+  },
+});
+
+export const resetLink = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await owner(ctx);
+    const invite = crypto.randomUUID();
+    await ctx.db.patch(ctx.me.workspaceId, { invite });
+    return linkTo(invite);
+  },
+});
+
+export const invite = mutation({
+  args: { emails: v.array(v.string()) },
+  handler: async (ctx, { emails }) => {
+    const { workspaceId, _id } = ctx.me;
+    const members = await Promise.all(
+      (await membersIn(ctx, workspaceId)).map((row) => ctx.db.get(row.userId)),
+    );
+    const taken = new Set(members.map((user) => user?.email.toLowerCase()));
+    for (const email of new Set(emails.map((email) => email.trim().toLowerCase()))) {
+      if (!EMAIL.test(email) || taken.has(email) || (await invitationTo(ctx, workspaceId, email)))
+        continue;
+      await ctx.db.insert("invitations", { workspaceId, email, invitedBy: _id });
+    }
+  },
+});
+
+export const pending = query({
+  args: {},
+  handler: (ctx) =>
+    ctx.db
+      .query("invitations")
+      .withIndex("workspace", (q) => q.eq("workspaceId", ctx.me.workspaceId))
+      .collect(),
+});
+
+export const revoke = mutation({
+  args: { id: v.id("invitations") },
+  handler: async (ctx, { id }) => {
+    if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
+      throw new ConvexError("Not found");
+    await ctx.db.delete(id);
+  },
+});
+
+export const rename = mutation({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    await owner(ctx);
+    if (name.trim()) await ctx.db.patch(ctx.me.workspaceId, { name: name.trim() });
+  },
+});
+
+export const leave = rawMutation({
+  args: { id: v.id("workspaces") },
+  handler: async (ctx, { id }) => depart(ctx, id, (await signedIn(ctx))._id),
+});
+
+export const removePerson = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await owner(ctx);
+    if (userId === ctx.me._id) throw new ConvexError("Leave the workspace instead");
+    await depart(ctx, ctx.me.workspaceId, userId);
+  },
+});
+
+export const removeWorkspace = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await owner(ctx);
+    await remove(ctx, ctx.me.workspaceId);
+  },
+});
+
+export const purge = internalMutation({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const thread = await ctx.db
+      .query("threads")
+      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+      .first();
+    if (!thread) {
+      const groups = await ctx.db
+        .query("groups")
+        .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+        .collect();
+      for (const group of groups) await ctx.db.delete(group._id);
+      return;
+    }
+    const inThread = (table: "messages" | "links" | "members" | "vectors" | "files") =>
+      ctx.db
+        .query(table)
+        .withIndex("thread", (q) => q.eq("threadId", thread._id))
+        .collect();
+    for (const table of ["messages", "links", "members", "vectors", "files"] as const)
+      for (const row of await inThread(table)) {
+        if ("storageId" in row && row.storageId)
+          await ctx.storage.delete(row.storageId).catch(() => {});
+        await ctx.db.delete(row._id);
+      }
+    await ctx.db.delete(thread._id);
+    await ctx.scheduler.runAfter(0, internal.workspace.purge, { workspaceId });
+  },
+});
+
+export const backfill = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    for (const user of await ctx.db.query("users").collect()) {
+      const { workspaceId } = user;
+      if (!workspaceId || (await memberOf(ctx, workspaceId, user._id))) continue;
+      const first = !(await membersIn(ctx, workspaceId)).length;
+      await ctx.db.insert("memberships", {
+        userId: user._id,
+        workspaceId,
+        role: first ? "owner" : "member",
+      });
+    }
   },
 });
 
 export const people = query({
   args: {},
-  handler: (ctx) =>
-    ctx.db
-      .query("users")
-      .withIndex("workspace", (q) => q.eq("workspaceId", ctx.me.workspaceId))
-      .collect(),
+  handler: async (ctx) =>
+    Promise.all(
+      (await membersIn(ctx, ctx.me.workspaceId)).map(async (row) => ({
+        ...(await ctx.db.get(row.userId))!,
+        role: row.role,
+      })),
+    ),
 });
 
 export const groups = query({
@@ -76,8 +345,10 @@ export const saveGroup = mutation({
   args: { id: v.optional(v.id("groups")), name: v.string(), userIds: v.array(v.id("users")) },
   handler: async (ctx, { id, ...group }) => {
     const { workspaceId } = ctx.me;
-    const users = await Promise.all(group.userIds.map((userId) => ctx.db.get(userId)));
-    if (users.some((user) => user?.workspaceId !== workspaceId)) throw new ConvexError("Not found");
+    const members = await Promise.all(
+      group.userIds.map((userId) => memberOf(ctx, workspaceId, userId)),
+    );
+    if (members.some((member) => !member)) throw new ConvexError("Not found");
     if (!id) return void (await ctx.db.insert("groups", { workspaceId, ...group }));
     if ((await ctx.db.get(id))?.workspaceId !== workspaceId) throw new ConvexError("Not found");
     await ctx.db.patch(id, group);

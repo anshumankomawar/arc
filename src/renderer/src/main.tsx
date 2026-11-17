@@ -9,7 +9,7 @@ import { App } from "./App";
 import { api, useMe } from "./data";
 import { Landing } from "./Landing";
 import { invite, SignIn, Start } from "./SignIn";
-import { previews, theme } from "./state";
+import { previews, switched, theme } from "./state";
 import "./app.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
@@ -38,9 +38,14 @@ function Home() {
   const me = useMe();
   const join = useMutation(api.workspace.join);
   const [joined, setJoined] = useState(false);
-  const joining = !joined && me && !me.workspaceId && invite;
+  const joining = !joined && me && invite;
   useEffect(() => {
-    if (joining) void join({ link: joining }).then(() => setJoined(true));
+    if (joining)
+      void join({ link: joining }).then(() => {
+        history.replaceState(null, "", "/");
+        switched();
+        setJoined(true);
+      });
   }, [joining]);
   return me && !joining && (me.workspaceId ? <App /> : <Start />);
 }

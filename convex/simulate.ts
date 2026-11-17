@@ -99,14 +99,15 @@ export const start = internalMutation({
     if (!me?.workspaceId) throw new Error(`No account in a workspace for ${email}`);
     const { workspaceId } = me;
     const userIds = [];
-    for (const name of TEAM)
-      userIds.push(
-        await ctx.db.insert("users", {
-          name,
-          email: `${name.split(" ")[0].toLowerCase()}@example.com`,
-          workspaceId,
-        }),
-      );
+    for (const name of TEAM) {
+      const userId = await ctx.db.insert("users", {
+        name,
+        email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+        workspaceId,
+      });
+      await ctx.db.insert("memberships", { userId, workspaceId, role: "member" });
+      userIds.push(userId);
+    }
     await ctx.db.insert("groups", { workspaceId, name: "design", userIds: [me._id, ...userIds] });
     await ctx.scheduler.runAfter(0, internal.simulate.step, {
       meId: me._id,
@@ -122,10 +123,11 @@ export const step = internalMutation({
     const [from, key, bucket, text] = SCRIPT[index];
     const me = (await ctx.db.get(meId))!;
     const workspaceId = me.workspaceId!;
-    const people = await ctx.db
-      .query("users")
+    const rows = await ctx.db
+      .query("memberships")
       .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
+    const people = await Promise.all(rows.map(async (row) => (await ctx.db.get(row.userId))!));
     const groups = await ctx.db
       .query("groups")
       .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))

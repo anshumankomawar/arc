@@ -6,11 +6,27 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     workspaceId: v.optional(v.id("workspaces")),
-  }).index("workspace", ["workspaceId"]),
+  }),
 
   workspaces: defineTable({ name: v.string(), invite: v.optional(v.string()) }).index("invite", [
     "invite",
   ]),
+
+  memberships: defineTable({
+    userId: v.id("users"),
+    workspaceId: v.id("workspaces"),
+    role: v.union(v.literal("owner"), v.literal("member")),
+  })
+    .index("user", ["userId"])
+    .index("workspace", ["workspaceId", "userId"]),
+
+  invitations: defineTable({
+    workspaceId: v.id("workspaces"),
+    email: v.string(),
+    invitedBy: v.id("users"),
+  })
+    .index("email", ["email"])
+    .index("workspace", ["workspaceId", "email"]),
 
   groups: defineTable({
     workspaceId: v.id("workspaces"),
@@ -24,7 +40,7 @@ export default defineSchema({
     ownerId: v.optional(v.id("users")),
     lastAuthorId: v.id("users"),
     lastBody: v.string(),
-  }),
+  }).index("workspace", ["workspaceId"]),
 
   messages: defineTable({
     workspaceId: v.id("workspaces"),
@@ -66,11 +82,13 @@ export default defineSchema({
     threadId: v.id("threads"),
     messageId: v.id("messages"),
     vector: v.array(v.float64()),
-  }).vectorIndex("near", {
-    vectorField: "vector",
-    dimensions: 1024,
-    filterFields: ["workspaceId"],
-  }),
+  })
+    .index("thread", ["threadId"])
+    .vectorIndex("near", {
+      vectorField: "vector",
+      dimensions: 1024,
+      filterFields: ["workspaceId"],
+    }),
 
   members: defineTable({
     workspaceId: v.id("workspaces"),

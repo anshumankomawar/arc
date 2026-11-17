@@ -6,7 +6,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 export type Box = "inbox" | "all" | "sent" | "drafts" | (string & {});
 type View = { box: Box; thread?: Id<"threads">; draft?: string };
 export type Draft = { id: string; text: string; at: number };
-export type Dialog = "search" | "find" | "new" | "settings";
+export type Dialog = "search" | "find" | "new" | "settings" | "workspace";
 
 export const theme = createPreference({
   values: ["dark", "light"],
@@ -43,7 +43,7 @@ export const useUI = create<UI>()(
       scale: 100,
       drafts: [],
       dialog: null,
-      tab: "Workspace",
+      tab: "Workspaces",
     }),
     { name: "ui", partialize: ({ sidebar, scale, drafts }) => ({ sidebar, scale, drafts }) },
   ),
@@ -51,6 +51,9 @@ export const useUI = create<UI>()(
 
 const set = useUI.setState;
 export const reset = () => set({ history: [{ box: "inbox" }], at: 0, drafts: [], dialog: null });
+
+export const switched = (dialog: Dialog | null = null) =>
+  set({ history: [{ box: "inbox" }], at: 0, dialog });
 
 export const useView = () => useUI((ui) => ui.history[ui.at]);
 
@@ -70,7 +73,7 @@ export const back = () => set(({ at }) => ({ at: Math.max(0, at - 1) }));
 export const forward = () =>
   set(({ at, history }) => ({ at: Math.min(history.length - 1, at + 1) }));
 
-export const setDialog = (dialog: Dialog | null, tab = "Workspace") => set({ dialog, tab });
+export const setDialog = (dialog: Dialog | null, tab = "Workspaces") => set({ dialog, tab });
 export const toggleSidebar = () => set(({ sidebar }) => ({ sidebar: !sidebar }));
 export const scaleBy = (step: number) =>
   set(({ scale }) => ({ scale: Math.min(160, Math.max(80, scale + step)) }));

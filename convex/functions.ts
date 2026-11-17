@@ -11,10 +11,17 @@ export async function signedIn(ctx: QueryCtx) {
   return me;
 }
 
+export const memberOf = (ctx: QueryCtx, workspaceId: Id<"workspaces">, userId: Id<"users">) =>
+  ctx.db
+    .query("memberships")
+    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId).eq("userId", userId))
+    .unique();
+
 async function inWorkspace(ctx: QueryCtx) {
   const { workspaceId, ...me } = await signedIn(ctx);
-  if (!workspaceId) throw new ConvexError("No workspace");
-  return { me: { ...me, workspaceId } };
+  const member = workspaceId && (await memberOf(ctx, workspaceId, me._id));
+  if (!member) throw new ConvexError("No workspace");
+  return { me: { ...me, workspaceId: member.workspaceId } };
 }
 
 export const query = customQuery(rawQuery, customCtx(inWorkspace));

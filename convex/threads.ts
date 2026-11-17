@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { membership, mutation, query, type Ctx } from "./functions";
+import { memberOf, membership, mutation, query, type Ctx } from "./functions";
 import { urlsIn } from "./links";
 import { FILE_LIMIT, fileToken, mentions, titleOf } from "./text";
 
@@ -30,7 +30,7 @@ export async function post(
   const colleague = async (id: string) => {
     const userId = ctx.db.normalizeId("users", id);
     const user = userId && (await ctx.db.get(userId));
-    return user?.workspaceId === workspaceId ? [user._id] : [];
+    return user && (await memberOf(ctx, workspaceId, user._id)) ? [user._id] : [];
   };
   const groups = await Promise.all(
     mentions(body, "group").map((id) => {

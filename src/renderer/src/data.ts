@@ -89,6 +89,9 @@ export function useFiles() {
   };
   return { bytes, download, preview: window.desktop ? look : download };
 }
+export const useWorkspaces = () => useQuery(api.workspace.workspaces) ?? EMPTY;
+export const useInvitations = () => useQuery(api.workspace.invitations) ?? EMPTY;
+export const usePending = () => useQuery(api.workspace.pending) ?? EMPTY;
 export const usePeople = () => useQuery(api.workspace.people) ?? EMPTY;
 export const useGroups = () => useQuery(api.workspace.groups) ?? EMPTY;
 export const useBuckets = () => useQuery(api.workspace.buckets) ?? EMPTY;
