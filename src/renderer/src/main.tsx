@@ -7,6 +7,7 @@ import { Component, StrictMode, useEffect, useState, type ReactNode } from "reac
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { api, useMe } from "./data";
+import { Landing } from "./Landing";
 import { invite, SignIn, Start } from "./SignIn";
 import { previews, theme } from "./state";
 import "./app.css";
@@ -56,9 +57,7 @@ createRoot(document.getElementById("root")!).render(
       <ConvexQueryCacheProvider>
         <Preferences preferences={[theme, previews]}>
           <Theme />
-          <Unauthenticated>
-            <SignIn />
-          </Unauthenticated>
+          <Unauthenticated>{window.desktop || invite ? <SignIn /> : <Landing />}</Unauthenticated>
           <Authenticated>
             <UntilSignedOut>
               <Home />

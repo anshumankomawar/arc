@@ -40,9 +40,10 @@ listens on only while you sign in.
 ## The website
 
 arcteams.chat is the same app, built from `src/renderer` for the browser: sign-in, `/join/<code>` (where an invite link
-leads and where signing in joins the workspace), then the workspace itself. The interface asks one question about where
-it runs, whether `window.desktop` exists. Only the desktop has it, for signing in through the system browser, the native
-theme and Quick Look.
+leads and where signing in joins the workspace), then the workspace itself. Signed out, `/` is the landing page
+(`Landing.tsx`): the sign-in screen over a picture of the app, drawn from its own components. The interface asks one
+question about where it runs, whether `window.desktop` exists. Only the desktop has it, for signing in through the
+system browser, the native theme and Quick Look.
 
 ```sh
 bun run web                                         # http://localhost:5173

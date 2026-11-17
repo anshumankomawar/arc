@@ -42,17 +42,18 @@ function useRedirect() {
 }
 const useGoogle = window.desktop ? useLoopback : useRedirect;
 
-export function SignIn() {
-  const google = useGoogle();
-  const workspace = useQuery(api.workspace.invited, invite ? { invite } : "skip");
+export function useReady() {
   const [ready, setReady] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-
   useEffect(() => {
     void loaded.then(() => setReady(true));
   }, []);
+  return ready;
+}
 
+export function Welcome({ workspace }: { workspace?: string | null }) {
+  const google = useGoogle();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const signIn = async () => {
     setBusy(true);
     setFailed(false);
@@ -62,29 +63,35 @@ export function SignIn() {
   const title = workspace ? `You’re invited to ${workspace}` : "Where decisions don’t get lost";
 
   return (
+    <div>
+      <h1>
+        {title.split(" ").map((word, index) => (
+          <span key={index} style={{ animationDelay: `${80 + index * 80}ms` }}>
+            {word}{" "}
+          </span>
+        ))}
+      </h1>
+      <p>
+        {workspace
+          ? "Sign in with your Google account to accept the invite."
+          : "Arc is team messaging in threads that sort themselves. Sign in with your Google account."}
+      </p>
+      <Button onClick={signIn} disabled={busy}>
+        {busy ? <i /> : <Icon name="google" size={18} />}
+        Continue with Google
+      </Button>
+      {failed && <p role="alert">Signing in with Google didn't finish.</p>}
+      {workspace === null && <p role="alert">That invite link doesn't lead to a workspace.</p>}
+    </div>
+  );
+}
+
+export function SignIn() {
+  const workspace = useQuery(api.workspace.invited, invite ? { invite } : "skip");
+  const ready = useReady();
+  return (
     <main className="welcome">
-      {ready && (!invite || workspace !== undefined) && (
-        <div>
-          <h1>
-            {title.split(" ").map((word, index) => (
-              <span key={index} style={{ animationDelay: `${80 + index * 80}ms` }}>
-                {word}{" "}
-              </span>
-            ))}
-          </h1>
-          <p>
-            {workspace
-              ? "Sign in with your Google account to accept the invite."
-              : "Arc is team messaging in threads that sort themselves. Sign in with your Google account."}
-          </p>
-          <Button onClick={signIn} disabled={busy}>
-            {busy ? <i /> : <Icon name="google" size={18} />}
-            Continue with Google
-          </Button>
-          {failed && <p role="alert">Signing in with Google didn't finish.</p>}
-          {workspace === null && <p role="alert">That invite link doesn't lead to a workspace.</p>}
-        </div>
-      )}
+      {ready && (!invite || workspace !== undefined) && <Welcome workspace={workspace} />}
     </main>
   );
 }
