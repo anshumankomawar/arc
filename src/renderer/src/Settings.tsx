@@ -9,7 +9,6 @@ import {
   ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
-  ComboboxItemIndicator,
   ComboboxList,
   ComboboxValue,
 } from "@ui-sdk/react/combobox";
@@ -96,15 +95,17 @@ export function Members(props: {
   autoFocus?: boolean;
   onChange: (userIds: Id<"users">[]) => void;
 }) {
+  const [userIds, setUserIds] = useState(props.defaultValue);
   return (
     <Combobox
       multiple
       autoHighlight
-      defaultValue={props.defaultValue}
+      value={userIds}
       itemToLabel={(id) => props.people.find((person) => person._id === id)?.name ?? ""}
-      onValueChange={(userIds, details) =>
-        details.reason !== "reset" && props.onChange(userIds as Id<"users">[])
-      }
+      onValueChange={(next) => {
+        setUserIds(next as Id<"users">[]);
+        props.onChange(next as Id<"users">[]);
+      }}
     >
       <ComboboxChips className="chips">
         <ComboboxValue>
@@ -128,13 +129,14 @@ export function Members(props: {
       <ComboboxContent className="panel menu" align="start" sideOffset={4}>
         <ComboboxEmpty>Nobody by that name</ComboboxEmpty>
         <ComboboxList>
-          {props.people.map((person) => (
-            <ComboboxItem key={person._id} value={person._id} label={person.name}>
-              <Identicon seed={person._id} size={16} />
-              <span className="clip">{person.name}</span>
-              <ComboboxItemIndicator>✓</ComboboxItemIndicator>
-            </ComboboxItem>
-          ))}
+          {props.people
+            .filter((person) => !userIds.includes(person._id))
+            .map((person) => (
+              <ComboboxItem key={person._id} value={person._id} label={person.name}>
+                <Identicon seed={person._id} size={16} />
+                {person.name}
+              </ComboboxItem>
+            ))}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>

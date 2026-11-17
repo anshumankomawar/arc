@@ -892,6 +892,7 @@ small {
       &:hover,
       &:focus-visible {
         color: var(--text);
+        background: none;
       }
     }
     & input {
