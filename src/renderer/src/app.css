@@ -13,7 +13,7 @@
   --panel: light-dark(#ffffff, #171717);
   --panel-line: light-dark(#e4e4e2, #212121);
   --panel-selected: light-dark(#f3f3f1, #222222);
-  --shadow: light-dark(0 4px 14px rgb(0 0 0 / 9%), 0 8px 24px rgb(0 0 0 / 35%));
+  --shadow: 0 6px 20px light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 40%));
   --accent: light-dark(#2f6fb7, #78aee7);
   --blue: light-dark(#007aff, #0a84ff);
   --inbox: light-dark(#1373d9, #58c9ff);
@@ -145,7 +145,7 @@ small {
   }
 }
 [role="alertdialog"] {
-  width: 320px;
+  width: min(320px, 100vw - 32px);
   height: fit-content;
   margin: auto;
   padding: 16px;
@@ -167,6 +167,8 @@ small {
   }
 }
 .topbar {
+  position: sticky;
+  left: 0;
   display: grid;
   grid-template-columns: 1fr minmax(220px, 460px) 1fr;
   gap: 8px;
@@ -231,10 +233,6 @@ small {
   }
 }
 
-.topbar {
-  position: sticky;
-  left: 0;
-}
 .topbar + .columns {
   min-width: 960px;
 }
@@ -318,6 +316,9 @@ small {
     flex-shrink: 0;
     margin: 9px 8px 0;
   }
+  & .head + [data-slot="listbox"] {
+    padding-top: 2px;
+  }
   & .switcher {
     display: flex;
     flex: 1;
@@ -335,19 +336,22 @@ small {
     border-radius: 8px;
     color: var(--text-2);
   }
-  & .switcher,
-  & .compose {
-    &:hover,
+  & .switcher {
+    padding: 0 7px;
+    border: 1px solid transparent;
+
+    & .icon {
+      color: var(--text-3);
+    }
     &[data-open] {
-      background: var(--hover);
+      border-color: var(--panel-line) var(--panel-line) transparent;
+      border-radius: 8px 8px 0 0;
+      background: var(--panel);
+      box-shadow: var(--shadow);
     }
   }
-  & .dot {
-    flex-shrink: 0;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
+  & .compose:hover {
+    background: var(--hover);
   }
   & .profile {
     gap: 6px;
@@ -517,7 +521,7 @@ small {
   overflow-y: auto;
 
   &[data-slot="trigger-menu-content"] {
-    width: 330px;
+    width: min(330px, 100vw - 32px);
     padding: 4px 0;
   }
   & :is([data-slot="command-item"], [data-slot="trigger-menu-item"]) {
@@ -743,9 +747,6 @@ small {
       background: var(--selected);
     }
   }
-}
-
-.palette {
   &[data-busy] {
     border-color: transparent;
     background:
@@ -786,8 +787,6 @@ small {
     color: var(--text-3);
   }
   & [data-slot="menu-item"],
-  & [data-slot="menu-radio-item"],
-  & [data-slot="menu-sub-trigger"],
   & [data-slot="combobox-item"] {
     display: flex;
     gap: 6px;
@@ -807,17 +806,43 @@ small {
     color: var(--text-3);
     font-size: 11px;
   }
-  & [data-slot="menu-item-indicator"] {
-    margin-left: auto;
-  }
-  & small {
-    margin-left: auto;
-    color: var(--text-3);
-  }
   & [data-slot="menu-separator"] {
     height: 1px;
     margin: 3px 10px;
     background: var(--line);
+  }
+}
+.menu.workspaces {
+  width: var(--anchor-width);
+  padding: 3px;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  font-size: 13px;
+  clip-path: inset(0 -40px -60px);
+  transition: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-property: clip-path, opacity;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    clip-path: inset(0 -40px 100%);
+  }
+  & [data-slot="menu-item"] {
+    gap: 8px;
+    height: 30px;
+    margin: 0;
+    padding: 0 4px;
+    border-radius: 6px;
+
+    &[data-highlighted] {
+      background: var(--selected);
+    }
+  }
+  & [data-slot="menu-group-label"] {
+    padding: 6px 4px 2px;
+  }
+  & [data-slot="menu-separator"] {
+    margin: 3px 4px;
   }
 }
 
@@ -847,6 +872,7 @@ small {
   }
   & header {
     display: flex;
+    gap: 6px;
     align-items: center;
   }
   & h2 {
@@ -919,8 +945,21 @@ small {
       display: flex;
       flex: 1;
     }
+    & .row {
+      position: relative;
+    }
     & .row:last-child {
       margin-left: -10px;
+    }
+    & button.quiet {
+      position: absolute;
+      right: 0;
+      background: var(--panel);
+      box-shadow: -10px 0 8px var(--panel);
+
+      &:hover {
+        background: var(--panel-selected);
+      }
     }
   }
   & .title {
@@ -939,7 +978,7 @@ small {
       background: var(--hover);
     }
   }
-  & .text {
+  & button.text {
     border-color: transparent;
     color: var(--text-3);
 
@@ -947,14 +986,14 @@ small {
       color: var(--text);
     }
   }
-  & .danger {
+  & button.danger {
     color: light-dark(#c62828, #ff8a80);
 
     &:hover {
       color: light-dark(#a51e1e, #ffb3ab);
     }
   }
-  & .quiet {
+  & button.quiet {
     border-color: transparent;
     color: var(--text-3);
     opacity: 0;
@@ -1057,7 +1096,7 @@ small {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 360px;
+    width: min(360px, 100% - 32px);
     text-align: center;
     -webkit-app-region: no-drag;
   }
@@ -1142,7 +1181,9 @@ small {
   }
   & [data-slot="segmented-control"] {
     position: relative;
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     isolation: isolate;
     margin-top: 26px;
     padding: 3px;
@@ -1151,8 +1192,8 @@ small {
     animation: arrive 600ms var(--ease) 360ms backwards;
 
     & button {
-      width: 92px;
       height: 30px;
+      padding: 0 28px;
       margin: 0;
       color: var(--text-3);
       background: none;
@@ -1325,6 +1366,7 @@ small {
   }
   .welcome *,
   .landing header .icon,
+  .workspaces,
   .window {
     animation: none !important;
     transition: none !important;
@@ -1333,25 +1375,23 @@ small {
 
 .welcome.adding {
   position: fixed;
-  inset: 0;
+  inset: 50% 0 auto;
   flex: none;
   width: 420px;
   max-width: calc(100vw - 32px);
-  height: fit-content;
-  margin: auto;
+  max-height: calc(100vh - 32px);
+  margin: 0 auto;
   padding: 32px 30px;
+  border-radius: 32px;
+  overflow-y: auto;
+  translate: 0 -50%;
   -webkit-app-region: no-drag;
 
   & > div {
     width: 100%;
   }
   & h1 {
-    font:
-      600 18px/1.3 "Hanken Grotesk",
-      -apple-system,
-      BlinkMacSystemFont,
-      sans-serif;
-    letter-spacing: normal;
+    font-size: 28px;
   }
 }
 .welcome .invitation {
@@ -1363,5 +1403,8 @@ small {
   }
   & + .invitation {
     margin-top: 8px;
+  }
+  & + p {
+    margin-top: 30px;
   }
 }

@@ -32,6 +32,12 @@ const invitationTo = (ctx: QueryCtx, workspaceId: Id<"workspaces">, email: strin
     .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId).eq("email", email))
     .unique();
 
+const invitationsTo = (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
+  ctx.db
+    .query("invitations")
+    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+
 const invitedTo = (ctx: QueryCtx, invite: string) =>
   ctx.db
     .query("workspaces")
@@ -69,11 +75,8 @@ async function remove(ctx: MutationCtx, workspaceId: Id<"workspaces">) {
     await ctx.db.delete(row._id);
     await moveOut(ctx, row.userId, workspaceId);
   }
-  const invitations = await ctx.db
-    .query("invitations")
-    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
-    .collect();
-  for (const invitation of invitations) await ctx.db.delete(invitation._id);
+  for (const invitation of await invitationsTo(ctx, workspaceId))
+    await ctx.db.delete(invitation._id);
   await ctx.db.delete(workspaceId);
   await ctx.scheduler.runAfter(0, internal.workspace.purge, { workspaceId });
 }
@@ -228,11 +231,7 @@ export const invite = mutation({
 
 export const pending = query({
   args: {},
-  handler: (ctx) =>
-    ctx.db
-      .query("invitations")
-      .withIndex("workspace", (q) => q.eq("workspaceId", ctx.me.workspaceId))
-      .collect(),
+  handler: (ctx) => invitationsTo(ctx, ctx.me.workspaceId),
 });
 
 export const revoke = mutation({

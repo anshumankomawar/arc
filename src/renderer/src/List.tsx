@@ -37,7 +37,7 @@ export function List() {
       <ListboxItem value={row.threadId} label={row.title} className="card">
         <span className="line">
           <b className="clip">{row.title}</b>
-          {row.unread && <i className="unread" aria-label="Unread" />}
+          {row.unread && <i className="unread" role="img" aria-label="Unread" />}
           <time>{stamp(row.activeAt)}</time>
         </span>
         <span className="preview clip">

@@ -16,18 +16,20 @@ The interface is built from ui-sdk (`@ui-sdk/react`, with `@ui-sdk/core` under i
 
 What's already in use, and where:
 
-| For                                   | Component                                                   | In                           |
-| ------------------------------------- | ----------------------------------------------------------- | ---------------------------- |
-| Reply and New Message, with @mentions | Token Input, Trigger Menu, File Input                       | `MessageBox.tsx`             |
-| Mailboxes and the thread list         | Listbox                                                     | `Sidebar.tsx`, `List.tsx`    |
-| ⌘K, ⌘F and New Message                | Command, Dialog                                             | `Palette.tsx`                |
-| Right-click menus                     | Menu                                                        | `Menu.tsx`                   |
-| Columns                               | Resizable                                                   | `App.tsx`                    |
-| Keys                                  | `useShortcut`                                               | `App.tsx`, `Thread.tsx`      |
-| Theme, and whether previews show      | `createPreference`                                          | `state.ts`                   |
-| Settings popup                        | Dialog, Tabs                                                | `Settings.tsx`               |
-| Confirming a delete                   | `confirm`, Overlay Host                                     | `data.ts`, `App.tsx`         |
-| Settings and the first-run screens    | Input, Textarea, Checkbox, Segmented Control, Field, Button | `Settings.tsx`, `SignIn.tsx` |
+| For                                     | Component                                         | In                                       |
+| --------------------------------------- | ------------------------------------------------- | ---------------------------------------- |
+| Reply and New Message, with @mentions   | Token Input, Trigger Menu, File Input             | `MessageBox.tsx`                         |
+| Mailboxes and the thread list           | Listbox                                           | `Sidebar.tsx`, `List.tsx`, `Landing.tsx` |
+| ⌘K, ⌘F and New Message                  | Command, Dialog                                   | `Palette.tsx`                            |
+| Right-click menus, the workspace picker | Menu                                              | `Menu.tsx`, `Sidebar.tsx`                |
+| People in a group                       | Combobox                                          | `Settings.tsx`                           |
+| Columns                                 | Resizable                                         | `App.tsx`                                |
+| Keys                                    | `useShortcut`                                     | `App.tsx`, `Thread.tsx`                  |
+| Theme, and whether previews show        | `createPreference`                                | `state.ts`                               |
+| Settings popup                          | Dialog, Tabs                                      | `Settings.tsx`                           |
+| Confirming a delete                     | `confirm`, Overlay Host                           | `data.ts`, `App.tsx`                     |
+| Settings and the first-run screens      | Input, Textarea, Segmented Control, Field, Button | `Settings.tsx`, `SignIn.tsx`             |
+| Adding a workspace                      | Dialog                                            | `SignIn.tsx`                             |
 
 Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's `data-slot` and state attributes
 (`data-selected`, `data-highlighted`, `data-open`).
@@ -40,8 +42,9 @@ Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's 
   doesn't fit is clipped).
 - Every Convex function is made with `query` and `mutation` from `convex/functions.ts`, never the ones in
   `_generated/server`: they sign the caller in and give you `ctx.me`. Read and write only inside `ctx.me.workspaceId`,
-  and reach a thread through `membership`. The only exceptions are the three in `convex/workspace.ts` that someone
-  with no workspace yet must reach (`me`, `create`, `join`); they call `signedIn` themselves.
+  and reach a thread through `membership`. The only exceptions are the ones in `convex/workspace.ts` that someone
+  with no workspace open must reach (`me`, `workspaces`, `invitations`, `invited`, `create`, `join`, `accept`,
+  `decline`, `open`, `leave`); they call `signedIn` themselves.
 - An action has no `ctx.me`: it reaches data only through those queries and mutations (`convex/search.ts`).
 - A message's delivery lives in `post` in `convex/threads.ts`. Change it with its tests, in `tests/`.
 - A file's bytes leave storage only through `download` in `convex/files.ts`, which checks membership. Never give a

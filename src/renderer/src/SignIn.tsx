@@ -153,9 +153,7 @@ export function AddWorkspace() {
 }
 
 export function Start() {
-  const invitations = useInvitations();
-  const accept = useMutation(api.workspace.accept);
-  const decline = useMutation(api.workspace.decline);
+  const { invitations, accept, decline } = useInvitations();
   const { signOut } = useAuthActions();
 
   return (

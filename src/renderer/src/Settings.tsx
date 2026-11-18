@@ -292,10 +292,8 @@ function Current(props: { people: number }) {
 function Workspaces() {
   const me = useMe()!;
   const workspaces = useWorkspaces();
-  const invitations = useInvitations();
+  const { invitations, accept, decline } = useInvitations();
   const open = useMutation(api.workspace.open);
-  const accept = useMutation(api.workspace.accept);
-  const decline = useMutation(api.workspace.decline);
   const actions = (
     <>
       <Button className="text" onClick={() => setDialog("workspace", "start")}>
@@ -417,7 +415,10 @@ export function Settings() {
             </div>
           </Section>
 
-          <Section title="Appearance" hint="How Arc looks on this Mac.">
+          <Section
+            title="Appearance"
+            hint={`How Arc looks ${window.desktop ? "on this Mac" : "in this browser"}.`}
+          >
             <div className="row">
               <span className="clip">Theme</span>
               <SegmentedControl

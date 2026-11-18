@@ -6,13 +6,7 @@ import {
   MenuGroup,
   MenuGroupLabel,
   MenuItem,
-  MenuItemIndicator,
-  MenuRadioGroup,
-  MenuRadioItem,
   MenuSeparator,
-  MenuSub,
-  MenuSubContent,
-  MenuSubTrigger,
   MenuTrigger,
 } from "@ui-sdk/react/menu";
 import { useMutation } from "convex/react";
@@ -35,53 +29,42 @@ import { go, setDialog, switched, useView, type Box } from "./state";
 function Switcher() {
   const me = useMe()!;
   const workspaces = useWorkspaces();
-  const invitations = useInvitations();
+  const { invitations, accept, decline } = useInvitations();
   const open = useMutation(api.workspace.open);
-  const accept = useMutation(api.workspace.accept);
-  const decline = useMutation(api.workspace.decline);
   const run = (value: string) => {
-    const [action, id] = value.split(" ") as [string, Id<"invitations">];
-    if (action === "accept") void accept({ id }).then(() => switched());
-    if (action === "decline") void decline({ id });
+    const [action, id] = value.split(" ");
+    if (action === "open") void open({ id: id as Id<"workspaces"> }).then(() => switched());
+    if (action === "accept") void accept({ id: id as Id<"invitations"> }).then(() => switched());
+    if (action === "decline") void decline({ id: id as Id<"invitations"> });
   };
+
+  const others = workspaces.filter((workspace) => workspace._id !== me.workspaceId);
+  if (!others.length && !invitations.length)
+    return <span className="switcher clip">{me.workspace}</span>;
 
   return (
     <Menu onAction={run}>
       <MenuTrigger render={<Button className="switcher" />}>
         <span className="clip">{me.workspace}</span>
-        {invitations.length > 0 && <span className="dot" />}
+        {invitations.length > 0 && <span className="count">{invitations.length}</span>}
+        <Icon name="chevron" />
       </MenuTrigger>
-      <MenuContent className="panel menu" align="start" sideOffset={4}>
-        <MenuRadioGroup
-          value={me.workspaceId}
-          onValueChange={(id) => void open({ id: id as Id<"workspaces"> }).then(() => switched())}
-        >
-          <MenuGroupLabel>Workspaces</MenuGroupLabel>
-          {workspaces.map((workspace) => (
-            <MenuRadioItem key={workspace._id} value={workspace._id}>
-              <span className="clip">{workspace.name}</span>
-              <MenuItemIndicator>✓</MenuItemIndicator>
-            </MenuRadioItem>
-          ))}
-        </MenuRadioGroup>
-        {invitations.length > 0 && (
-          <MenuGroup>
-            <MenuSeparator />
-            <MenuGroupLabel>Invitations · {invitations.length}</MenuGroupLabel>
-            {invitations.map((invitation) => (
-              <MenuSub key={invitation._id}>
-                <MenuSubTrigger>
-                  <span className="clip">{invitation.workspace}</span>
-                  <small>from {invitation.from}</small>
-                </MenuSubTrigger>
-                <MenuSubContent className="panel menu">
-                  <MenuItem value={`accept ${invitation._id}`}>Join</MenuItem>
-                  <MenuItem value={`decline ${invitation._id}`}>Decline</MenuItem>
-                </MenuSubContent>
-              </MenuSub>
-            ))}
+      <MenuContent className="panel menu workspaces" align="start" sideOffset={0}>
+        {others.map((workspace) => (
+          <MenuItem key={workspace._id} value={`open ${workspace._id}`} label={workspace.name}>
+            <span className="clip">{workspace.name}</span>
+          </MenuItem>
+        ))}
+        {invitations.map((invitation, index) => (
+          <MenuGroup key={invitation._id}>
+            {(index > 0 || others.length > 0) && <MenuSeparator />}
+            <MenuGroupLabel>
+              {invitation.from} invited you to {invitation.workspace}
+            </MenuGroupLabel>
+            <MenuItem value={`accept ${invitation._id}`}>Join {invitation.workspace}</MenuItem>
+            <MenuItem value={`decline ${invitation._id}`}>Decline</MenuItem>
           </MenuGroup>
-        )}
+        ))}
       </MenuContent>
     </Menu>
   );
