@@ -13,6 +13,7 @@ struct Composer: View {
   @Binding var text: String
   let placeholder: String
   var mustMention = false
+  var form = false
   let send: (String, [ConvexEncodable?]) async throws -> Void
   @State var attached: [Attachment] = []
   @State var photos: [PhotosPickerItem] = []
@@ -20,6 +21,14 @@ struct Composer: View {
   @State var pickingFiles = false
   @State var note = ""
   @State var busy = false
+  @FocusState var typing: Bool
+
+  var sendButton: some View {
+    Button("Send", systemImage: "paperplane.fill") { Task { await submit() } }
+      .buttonStyle(.borderedProminent)
+      .buttonBorderShape(.circle)
+      .disabled(busy || (text.trimmed.isEmpty && attached.isEmpty))
+  }
 
   var options: [String] {
     if let word = text.firstMatch(of: /@([^@\n]*)$/)?.1 {
@@ -33,6 +42,12 @@ struct Composer: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      if form {
+        TextField(placeholder, text: $text, axis: .vertical)
+          .focused($typing)
+          .frame(maxHeight: .infinity, alignment: .top)
+      }
+      if !note.isEmpty { Text(note).font(.footnote).foregroundStyle(.red) }
       chips(options) { option in
         text.replace(option.hasPrefix("@") ? /@[^@\n]*$/ : /\/\S*$/, with: option + " ")
       }
@@ -48,23 +63,25 @@ struct Composer: View {
         .buttonBorderShape(.circle)
         .controlSize(.large)
         .tint(.primary)
-        HStack(alignment: .bottom, spacing: 6) {
-          TextField(placeholder, text: $text, axis: .vertical)
-            .lineLimit(1...8)
-            .padding(.vertical, 6)
-          Button("Send", systemImage: "arrow.up") { Task { await submit() } }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.circle)
-            .disabled(busy || (text.trimmed.isEmpty && attached.isEmpty))
+        if form {
+          Spacer()
+          sendButton.controlSize(.large)
+        } else {
+          HStack(alignment: .bottom, spacing: 6) {
+            TextField(placeholder, text: $text, axis: .vertical)
+              .lineLimit(1...8)
+              .padding(.vertical, 6)
+            sendButton
+          }
+          .padding(.leading, 16)
+          .padding([.trailing, .vertical], 6)
+          .glassEffect(.regular, in: .rect(cornerRadius: 22))
         }
-        .padding(.leading, 16)
-        .padding([.trailing, .vertical], 6)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
       }
       .labelStyle(.iconOnly)
-      if !note.isEmpty { Text(note).font(.footnote).foregroundStyle(.red) }
     }
-    .padding(12)
+    .padding(form ? 16 : 12)
+    .onAppear { typing = form }
     .photosPicker(isPresented: $pickingPhotos, selection: $photos)
     .onChange(of: photos) {
       Task {
@@ -189,18 +206,17 @@ struct NewMessage: View {
   var body: some View {
     NavigationStack {
       Composer(
-        text: $draft.text, placeholder: "@mention who it’s for",
-        mustMention: true
+        text: $draft.text, placeholder: "Write a message, @mention who it’s for",
+        mustMention: true, form: true
       ) {
         store.opened = try await convex.mutation("threads:start", with: ["body": $0, "files": $1])
         sent = true
         dismiss()
       }
-      .frame(maxHeight: .infinity, alignment: .top)
       .navigationTitle("New Message")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+        ToolbarItem(placement: .topBarTrailing) {
           Button("Close", systemImage: "xmark") { dismiss() }.tint(.primary)
         }
       }

@@ -4,6 +4,7 @@ import Network
 import SwiftUI
 
 private let deployment = "https://uncommon-ibis-769.convex.cloud"
+let site = "https://uncommon-ibis-769.convex.site"
 private let open = ConvexClient(deploymentUrl: deployment)
 let convex = ConvexClientWithAuth(deploymentUrl: deployment, authProvider: Session())
 
@@ -31,6 +32,8 @@ private enum Keychain {
 }
 
 struct Session: AuthProvider {
+  nonisolated(unsafe) static var token = ""
+
   func login(onIdToken: @Sendable @escaping (String?) -> Void) async throws -> String {
     try await loginFromCache(onIdToken: onIdToken)
   }
@@ -41,6 +44,7 @@ struct Session: AuthProvider {
       "auth:refreshSession", with: ["refreshToken": kept])
     Keychain.refreshToken = signed.tokens?.refreshToken
     guard let tokens = signed.tokens else { throw CancellationError() }
+    Self.token = tokens.accessToken
     return tokens.accessToken
   }
 

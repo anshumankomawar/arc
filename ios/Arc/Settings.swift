@@ -12,11 +12,15 @@ struct Settings: View {
       Form {
         Section {
           Invitations()
-          Picker("Workspaces", selection: store.place) {
-            ForEach(store.places) { Text($0.name).tag($0._id) }
+          if store.places.count > 1 {
+            Picker("Workspaces", selection: store.place) {
+              ForEach(store.places) { Text($0.name).tag($0._id) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+          } else {
+            Text(store.me?.workspace ?? "")
           }
-          .pickerStyle(.inline)
-          .labelsHidden()
           Button("Create or Join a Workspace") { adding = true }
         } header: {
           Text("Workspaces")
@@ -107,7 +111,7 @@ struct Current: View {
           Label {
             Text(person.name)
           } icon: {
-            Identicon(seed: person._id)
+            Avatar(id: person._id)
           }
         }
         .swipeActions {

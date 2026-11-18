@@ -17,16 +17,6 @@ struct Home: View {
   }
 }
 
-struct Start: View {
-  var body: some View {
-    Welcome(title: "Welcome to Arc") {
-      Invitations()
-      Choice()
-      SignOut()
-    }
-  }
-}
-
 struct Invitations: View {
   @Environment(Store.self) var store
 
@@ -44,39 +34,6 @@ struct Invitations: View {
   }
 }
 
-struct Choice: View {
-  var done = {}
-  @State var joining = false
-  @State var text = ""
-  @State var failed = false
-
-  var body: some View {
-    Text(joining ? "Paste the invite link a teammate sent you." : "Start a workspace for your team.")
-      .foregroundStyle(.secondary)
-    Picker("Start or join", selection: $joining) {
-      Text("Start").tag(false)
-      Text("Join").tag(true)
-    }
-    .pickerStyle(.segmented)
-    TextField(joining ? "Invite link" : "Workspace name", text: $text)
-      .textFieldStyle(.roundedBorder)
-    Button(joining ? "Join Workspace" : "Create Workspace") {
-      Task {
-        if joining {
-          let joined: Bool? = try? await convex.mutation("workspace:join", with: ["link": text])
-          failed = joined != true
-        } else {
-          try? await convex.mutation("workspace:create", with: ["name": text.trimmed])
-        }
-        if !failed { done() }
-      }
-    }
-    .buttonStyle(.borderedProminent)
-    .disabled(text.trimmed.isEmpty)
-    if failed { Text("That link doesn’t lead to a workspace.").foregroundStyle(.red) }
-  }
-}
-
 struct Workspace: View {
   @Environment(Store.self) var store
 
@@ -88,7 +45,7 @@ struct Workspace: View {
       } label: {
         Image(systemName: "tray").accessibilityLabel("Inbox")
       }
-      .badge(store.rows.count { $0.inbox && $0.bucketId != nil && $0.unread })
+      .badge(store.inbox.count { $0.inbox && $0.bucketId != nil && $0.unread })
       Tab {
         Boxes()
       } label: {
@@ -100,9 +57,10 @@ struct Workspace: View {
         Image(systemName: "person.crop.circle").accessibilityLabel("Profile")
       }
     }
-    .live("threads:list", $store.rows)
-    .live("workspace:buckets", $store.buckets)
-    .live("workspace:people", $store.people)
+    .opacity(store.ready ? 1 : 0)
+    .live("threads:inbox", $store.loaded.inbox)
+    .live("workspace:buckets", $store.loaded.buckets)
+    .live("workspace:people", $store.loaded.people)
     .live("workspace:groups", $store.teams)
     .live("workspace:pending", $store.pending)
     .live("files:mine", $store.files)
@@ -147,19 +105,30 @@ struct Switcher: View {
   @Environment(Store.self) var store
 
   var body: some View {
-    Menu {
-      Picker("Workspaces", selection: store.place) {
-        ForEach(store.places) { Text($0.name).tag($0._id) }
+    let name = Text(store.me?.workspace ?? "")
+      .fontWeight(.semibold)
+      .fixedSize()
+      .frame(maxWidth: 200, alignment: .leading)
+      .clipped()
+    if store.places.count > 1 {
+      Menu {
+        Picker("Workspaces", selection: store.place) {
+          ForEach(store.places) { Text($0.name).tag($0._id) }
+        }
+      } label: {
+        HStack(spacing: 4) {
+          name
+          Image(systemName: "chevron.down")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+        }
       }
-    } label: {
-      HStack(spacing: 4) {
-        Text(store.me?.workspace ?? "")
-          .fontWeight(.semibold)
-          .fixedSize()
-          .frame(maxWidth: 200, alignment: .leading)
-          .clipped()
-        Image(systemName: "chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+    } else {
+      Button {
+      } label: {
+        name
       }
+      .allowsHitTesting(false)
     }
   }
 }
@@ -168,22 +137,36 @@ struct Strip: View {
   let items: [(id: String, name: String, count: Int?)]
   let open: String?
   @Binding var picked: String?
+  @Namespace var pill
 
   var body: some View {
     ScrollView(.horizontal) {
-      HStack(spacing: 20) {
+      HStack(spacing: 4) {
         ForEach(items, id: \.id) { item in
           Button {
-            picked = item.id
+            withAnimation(.snappy(duration: 0.3)) { picked = item.id }
           } label: {
-            Text(item.name).fontWeight(.semibold)
-            if let count = item.count { Text("\(count)").opacity(0.6) }
+            HStack(spacing: 6) {
+              Text(item.name).fontWeight(.semibold)
+              if let count = item.count { Text("\(count)").opacity(0.6) }
+            }
+            .foregroundStyle(item.id == open ? .primary : .tertiary)
+            .transaction { $0.animation = nil }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background {
+              if item.id == open {
+                Capsule()
+                  .fill(.clear)
+                  .glassEffect(.regular, in: .capsule)
+                  .matchedGeometryEffect(id: "pill", in: pill)
+              }
+            }
           }
-          .foregroundStyle(item.id == open ? .primary : .tertiary)
         }
       }
-      .padding(.horizontal)
-      .padding(.vertical, 8)
+      .padding(.horizontal, 16)
+      .padding(.vertical, 6)
     }
     .scrollIndicators(.hidden)
   }
@@ -194,11 +177,11 @@ struct Inbox: View {
   @State var picked: String?
 
   var body: some View {
-    let inbox = store.rows.filter { $0.inbox && $0.bucketId != nil }
+    let inbox = store.inbox.filter { $0.inbox && $0.bucketId != nil }
     let open = store.buckets.first { $0._id == picked } ?? store.buckets.first
     Stack {
       Threads(rows: inbox.filter { $0.bucketId == open?._id }, empty: "All caught up")
-        .id(open?._id)
+        .transaction { $0.animation = nil }
         .safeAreaBar(edge: .top) {
           Strip(
             items: store.buckets.map { bucket in
@@ -216,14 +199,9 @@ struct Boxes: View {
   var body: some View {
     Stack {
       ZStack {
-        if picked == "drafts" {
-          Drafts()
-        } else {
-          Threads(
-            rows: store.rows.filter { picked == "all" || $0.sent == true }, empty: "Nothing here")
-        }
+        if picked == "drafts" { Drafts() } else { Listed(sent: picked == "sent").id(picked) }
       }
-      .id(picked)
+      .transaction { $0.animation = nil }
       .safeAreaBar(edge: .top) {
         Strip(
           items: [
@@ -235,18 +213,31 @@ struct Boxes: View {
   }
 }
 
+struct Listed: View {
+  let sent: Bool
+  @State var rows = Paged<Row>()
+  @State var size = 50.0
+
+  var body: some View {
+    Threads(rows: rows.page, empty: "Nothing here", more: rows.isDone ? nil : { size += 50 })
+      .live("threads:list", $rows, with: ["sent": sent], page: size)
+  }
+}
+
 struct Threads: View {
   @Environment(Store.self) var store
   let rows: [Row]
   let empty: String
+  var more: (() -> Void)?
 
   var body: some View {
     let names = store.names
-    List(rows) { ThreadLink(row: $0, names: names) }
-      .chrome()
-      .overlay {
-        if rows.isEmpty { ContentUnavailableView(empty, systemImage: "tray") }
-      }
+    List {
+      ForEach(rows) { ThreadLink(row: $0, names: names) }
+      if let more { ProgressView().frame(maxWidth: .infinity).row().onAppear(perform: more) }
+    }
+    .chrome()
+    .nothing(empty, "tray", when: rows.isEmpty)
   }
 }
 
@@ -259,24 +250,22 @@ struct ThreadLink: View {
     Button {
       store.opened = row.threadId
     } label: {
-      HStack(alignment: .firstTextBaseline, spacing: 4) {
-        Circle().fill(.tint).frame(width: 8, height: 8).opacity(row.unread ? 1 : 0)
-        VStack(alignment: .leading, spacing: 2) {
-          HStack {
-            Text(names.name(row.lastAuthorId))
-              .fontWeight(row.unread ? .semibold : .regular)
-              .clip()
-            Text(stamp(Date(timeIntervalSince1970: row.activeAt / 1000)))
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-          }
-          Text(row.title).font(.subheadline).clip()
-          Text(names.plain(row.lastBody)).font(.subheadline).foregroundStyle(.secondary).clip()
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 6) {
+          Text(names.name(row.lastAuthorId))
+            .fontWeight(row.unread ? .semibold : .regular)
+            .clip()
+          if row.unread { Circle().fill(.tint).frame(width: 8, height: 8) }
+          Text(stamp(Date(timeIntervalSince1970: row.activeAt / 1000)))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
+        Text(row.title).font(.subheadline).clip()
+        Text(names.plain(row.lastBody)).font(.subheadline).foregroundStyle(.secondary).clip()
       }
     }
     .foregroundStyle(.primary)
-    .listRowInsets(EdgeInsets(top: 10, leading: 4, bottom: 10, trailing: 16))
+    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
     .row()
     .swipeActions(edge: .trailing) { Done(row: row).tint(.green) }
     .swipeActions(edge: .leading) { Unread(row: row).tint(.accent) }
@@ -285,18 +274,20 @@ struct ThreadLink: View {
 }
 
 struct Done: View {
+  @Environment(Store.self) var store
   let row: Row
 
   var body: some View {
     Button(
       row.inbox ? "Done" : "Move to Buckets", systemImage: row.inbox ? "checkmark" : "tray"
     ) {
-      run("threads:mark", ["threadId": row.threadId, "inbox": !row.inbox])
+      store.change(row, "mark") { $0.inbox.toggle() }
     }
   }
 }
 
 struct Unread: View {
+  @Environment(Store.self) var store
   let row: Row
 
   var body: some View {
@@ -304,7 +295,7 @@ struct Unread: View {
       row.unread ? "Mark Read" : "Mark Unread",
       systemImage: row.unread ? "envelope.open" : "envelope.badge"
     ) {
-      run("threads:mark", ["threadId": row.threadId, "unread": !row.unread])
+      store.change(row, "mark") { $0.unread.toggle() }
     }
   }
 }
@@ -319,7 +310,7 @@ struct ThreadActions: View {
     Divider()
     ForEach(store.buckets.filter { $0._id != row.bucketId }) { bucket in
       Button("Move to \(bucket.name)", systemImage: "folder") {
-        run("threads:move", ["threadId": row.threadId, "bucketId": bucket._id])
+        store.change(row, "move") { $0.bucketId = bucket._id }
       }
     }
   }
@@ -347,9 +338,7 @@ struct Drafts: View {
       }
     }
     .chrome()
-    .overlay {
-      if store.drafts.isEmpty { ContentUnavailableView("Nothing here", systemImage: "doc") }
-    }
+    .nothing("Nothing here", "doc", when: store.drafts.isEmpty)
   }
 }
 
@@ -357,17 +346,17 @@ struct Search: View {
   @Environment(Store.self) var store
   @Environment(\.dismiss) var dismiss
   @State var query = ""
-  @State var searching = true
+  @FocusState var typing: Bool
   @State var hits: [Message] = []
-  @State var asked: [String]?
+  @State var asked: [Row]?
   @State var busy = false
 
   var body: some View {
     let names = store.names
     let text = query.trimmed
-    let titled = store.rows.filter { text.isEmpty || $0.title.localizedStandardContains(text) }
-    let threads = asked?.compactMap { id in store.rows.first { $0.threadId == id } } ?? titled
-    NavigationStack {
+    let titled = store.inbox.filter { text.isEmpty || $0.title.localizedStandardContains(text) }
+    let threads = asked ?? titled
+    VStack {
       List {
         ForEach(threads) { ThreadLink(row: $0, names: names) }
         ForEach(asked == nil ? hits : []) { hit in
@@ -376,7 +365,7 @@ struct Search: View {
           } label: {
             VStack(alignment: .leading, spacing: 2) {
               Text(names.plain(hit.body)).clip()
-              Text(store.rows.first { $0.threadId == hit.threadId }?.title ?? "")
+              Text(hit.title ?? "")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .clip()
@@ -387,27 +376,39 @@ struct Search: View {
         }
       }
       .chrome()
+      .transaction { $0.animation = nil }
       .overlay {
-        if busy {
-          ProgressView()
-        } else if threads.isEmpty && hits.isEmpty {
-          ContentUnavailableView("No threads found", systemImage: "magnifyingglass")
-        }
+        if busy { ProgressView() }
       }
-      .searchable(
-        text: $query, isPresented: $searching,
-        placement: .navigationBarDrawer(displayMode: .always)
-      )
-      .searchPresentationToolbarBehavior(.avoidHidingContent)
-      .navigationTitle("Search")
-      .navigationBarTitleDisplayMode(.inline)
+      .nothing("No threads found", "magnifyingglass", when: !busy && threads.isEmpty && hits.isEmpty)
+      .safeAreaBar(edge: .top) {
+        HStack {
+          Label {
+            TextField("Search", text: $query).focused($typing)
+          } icon: {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+          }
+          .padding(.horizontal, 14)
+          .padding(.vertical, 11)
+          .glassEffect(.regular, in: .capsule)
+          Button("Close", systemImage: "xmark") { dismiss() }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.large)
+        }
+        .padding([.horizontal, .top])
+        .padding(.bottom, 8)
+      }
       .tint(.primary)
-      .onChange(of: searching) { dismiss() }
+      .onAppear { typing = true }
       .onChange(of: store.opened) { dismiss() }
       .autocorrectionDisabled()
     }
     .task(id: text) {
-      (hits, asked, busy) = ([], nil, false)
+      if !hits.isEmpty { hits = [] }
+      if asked != nil { asked = nil }
+      if busy { busy = false }
       guard text.count > 1, (try? await Task.sleep(for: .milliseconds(300))) != nil else { return }
       busy = titled.isEmpty
       async let near: [Message]? = try? convex.action("search:related", with: ["text": text])
@@ -417,9 +418,9 @@ struct Search: View {
       if Task.isCancelled { return }
       hits = found
       if titled.isEmpty && found.isEmpty {
-        let ids: [String]? = try? await convex.action("search:ask", with: ["question": text])
+        let rows: [Row]? = try? await convex.action("search:ask", with: ["question": text])
         if Task.isCancelled { return }
-        asked = ids ?? []
+        asked = rows ?? []
       }
       busy = false
     }

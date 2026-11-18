@@ -15,7 +15,7 @@ struct Me: Decodable {
 }
 struct Person: Doc {
   let _id, name, email: String
-  let role: String?
+  let role, image: String?
 }
 struct Place: Doc {
   let _id, name: String
@@ -54,6 +54,7 @@ struct Unfurl: Doc {
 }
 struct Message: Doc {
   let _id, threadId, authorId, body: String
+  let title: String?
   let _creationTime: Double
   let files: [File]?
   let links: [Unfurl]?
@@ -61,10 +62,14 @@ struct Message: Doc {
 struct Row: Decodable, Identifiable {
   let threadId, title, lastAuthorId, lastBody: String
   let activeAt: Double
-  let inbox, unread: Bool
+  var inbox, unread: Bool
   let sent: Bool?
-  let bucketId: String?
+  var bucketId: String?
   var id: String { threadId }
+}
+struct Paged<Item: Decodable>: Decodable {
+  var page: [Item] = []
+  var isDone = true
 }
 struct Draft: Codable, Identifiable {
   var id = UUID().uuidString
@@ -106,9 +111,14 @@ struct Names {
 
 @Observable final class Store {
   var me: Me?
-  var rows: [Row] = []
-  var buckets: [Bucket] = []
-  var people: [Person] = []
+  var loaded: (inbox: [Row]?, buckets: [Bucket]?, people: [Person]?)
+  var inbox: [Row] {
+    get { loaded.inbox ?? [] }
+    set { loaded.inbox = newValue }
+  }
+  var buckets: [Bucket] { loaded.buckets ?? [] }
+  var people: [Person] { loaded.people ?? [] }
+  var ready: Bool { loaded.inbox != nil && loaded.buckets != nil && loaded.people != nil }
   var teams: [Team] = []
   var files: [File] = []
   var places: [Place] = []
@@ -132,6 +142,17 @@ struct Names {
       all: Dictionary(
         people.map { ($0._id, $0.name) } + teams.map { ($0._id, $0.name) }
           + files.map { ($0._id, $0.name) }, uniquingKeysWith: { $1 }))
+  }
+
+  func change(_ row: Row, _ name: String, _ change: (inout Row) -> Void) {
+    var next = row
+    change(&next)
+    if let at = inbox.firstIndex(where: { $0.threadId == row.threadId }) { inbox[at] = next }
+    run(
+      "threads:\(name)",
+      name == "move"
+        ? ["threadId": row.threadId, "bucketId": next.bucketId]
+        : ["threadId": row.threadId, "inbox": next.inbox, "unread": next.unread])
   }
 
   func keep(_ draft: Draft, sent: Bool = false) {
@@ -172,17 +193,14 @@ func once<T: Decodable>(_ name: String, _ args: [String: ConvexEncodable?]) asyn
   return nil
 }
 
-func download(_ id: String) async throws -> Data {
-  struct Bytes: Decodable {
-    enum Key: String, CodingKey { case bytes = "$bytes" }
-    let data: Data
-    init(from decoder: Decoder) throws {
-      let encoded = try decoder.container(keyedBy: Key.self).decode(String.self, forKey: .bytes)
-      data = Data(base64Encoded: encoded) ?? Data()
-    }
-  }
-  let bytes: Bytes = try await convex.action("files:download", with: ["id": id])
-  return bytes.data
+func download(_ id: String, retry: Bool = true) async throws -> Data {
+  var request = URLRequest(url: URL(string: "\(site)/file?id=\(id)")!)
+  request.setValue("Bearer \(Session.token)", forHTTPHeaderField: "Authorization")
+  let (data, response) = try await URLSession.shared.data(for: request)
+  if (response as? HTTPURLResponse)?.statusCode == 200 { return data }
+  guard retry else { throw URLError(.fileDoesNotExist) }
+  _ = try await Session().loginFromCache { _ in }
+  return try await download(id, retry: false)
 }
 
 func stamp(_ date: Date) -> String {
@@ -218,16 +236,22 @@ extension Color {
 extension ShapeStyle where Self == Color {
   static var chrome: Color { Color(light: 0xfafafa, dark: 0x101010) }
   static var panel: Color { Color(light: 0xffffff, dark: 0x171717) }
+  static var ink: Color { Color(light: 0x181818, dark: 0xf1f1f1) }
+  static var faint: Color { .ink.opacity(0.58) }
   static var accent: Color { Color(light: 0x007aff, dark: 0x0a84ff) }
 }
 
 extension View {
   func live<T: Decodable>(
-    _ name: String, _ value: Binding<T>, with args: [String: ConvexEncodable?]? = nil
+    _ name: String, _ value: Binding<T>, with args: [String: ConvexEncodable?]? = nil,
+    page: Double? = nil
   ) -> some View {
-    task {
-      let updates = convex.subscribe(to: name, with: args, yielding: T.self)
-        .catch { _ in Empty() }.values
+    task(id: page) {
+      let paged = page.map { ["paginationOpts": ["numItems": $0, "cursor": nil] as [String: ConvexEncodable?]] }
+      let updates = convex.subscribe(
+        to: name, with: (args ?? [:]).merging(paged ?? [:]) { $1 }, yielding: T.self
+      )
+      .catch { _ in Empty() }.values
       for await next in updates { value.wrappedValue = next }
     }
   }
@@ -252,33 +276,39 @@ extension View {
     }
   }
 
+  func nothing(_ text: String, _ icon: String, when empty: Bool) -> some View {
+    overlay {
+      if empty {
+        VStack(spacing: 10) {
+          Image(systemName: icon).font(.title)
+          Text(text)
+        }
+        .foregroundStyle(.tertiary)
+      }
+    }
+  }
+
   func chrome() -> some View {
     listStyle(.plain).scrollContentBackground(.hidden).background(.chrome)
   }
 }
 
-struct Identicon: View {
-  let seed: String
+struct Avatar: View {
+  @Environment(Store.self) var store
+  let id: String
   var size = 22.0
 
   var body: some View {
-    let hash = seed.utf16.reduce(UInt32(0x811c_9dc5)) { ($0 ^ UInt32($1)) &* 0x0100_0193 }
-    let color = Color(hue: Double(hash % 360) / 360, saturation: 0.67, brightness: 0.78)
-    Canvas { context, _ in
-      let cell = size / 6
-      for row in 0..<5 {
-        for col in 0..<3 where hash >> UInt32(row * 3 + col + 9) & 1 == 1 {
-          for x in Set([col, 4 - col]) {
-            let square = CGRect(
-              x: (Double(x) + 0.5) * cell, y: (Double(row) + 0.5) * cell, width: cell * 1.02,
-              height: cell * 1.02)
-            context.fill(Path(square), with: .color(color))
-          }
-        }
-      }
+    let person = store.people.first { $0._id == id }
+    AsyncImage(url: URL(string: person?.image ?? "")) { image in
+      image.resizable().scaledToFill()
+    } placeholder: {
+      Text(person?.name.prefix(1) ?? "")
+        .font(.system(size: size * 0.45, weight: .semibold))
+        .frame(width: size, height: size)
+        .background(.ink.opacity(0.1))
     }
     .frame(width: size, height: size)
-    .background(Color(white: 0.95))
     .clipShape(.circle)
   }
 }

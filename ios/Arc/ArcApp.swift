@@ -1,11 +1,17 @@
-import AuthenticationServices
 import ConvexMobile
+import CoreText
 import SwiftUI
 
 @main
 struct ArcApp: App {
   @AppStorage("theme") var theme = ""
   @State var signedIn: Bool?
+
+  init() {
+    for font in Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [] {
+      CTFontManagerRegisterFontsForURL(font as CFURL, .process, nil)
+    }
+  }
 
   var body: some Scene {
     WindowGroup {
@@ -22,47 +28,6 @@ struct ArcApp: App {
           if case .unauthenticated = state { signedIn = false }
         }
       }
-    }
-  }
-}
-
-struct Welcome<Content: View>: View {
-  let title: String
-  var hint = ""
-  @ViewBuilder var content: Content
-
-  var body: some View {
-    VStack(spacing: 16) {
-      Text(title).font(.largeTitle.weight(.light))
-      if !hint.isEmpty { Text(hint).foregroundStyle(.secondary) }
-      content
-    }
-    .multilineTextAlignment(.center)
-    .padding(32)
-  }
-}
-
-struct SignIn: View {
-  @Environment(\.webAuthenticationSession) var web
-  @State var busy = false
-  @State var failed = false
-
-  var body: some View {
-    Welcome(
-      title: "Where decisions don’t get lost",
-      hint: "Arc is team messaging in threads that sort themselves."
-    ) {
-      Button("Continue with Google") {
-        Task {
-          busy = true
-          failed = (try? await google(web)) == nil
-          busy = false
-        }
-      }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.large)
-      .disabled(busy)
-      if failed { Text("Signing in with Google didn’t finish.").foregroundStyle(.red) }
     }
   }
 }

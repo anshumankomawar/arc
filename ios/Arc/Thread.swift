@@ -6,14 +6,16 @@ struct ThreadView: View {
   @Environment(Store.self) var store
   @AppStorage("previews") var previews = true
   let threadId: String
-  @State var messages: [Message] = []
+  @State var paged = Paged<Message>()
+  @State var size = 50.0
+  @State var row: Row?
   @State var text = ""
   @State var shown: URL?
 
   var body: some View {
     let names = store.names
-    let row = store.rows.first { $0.threadId == threadId }
-    let turns = messages.reduce(into: [[Message]]()) { turns, message in
+    let messages = paged.page
+    let turns = messages.reversed().reduce(into: [[Message]]()) { turns, message in
       if turns.last?.first?.authorId == message.authorId {
         turns[turns.count - 1].append(message)
       } else {
@@ -22,9 +24,10 @@ struct ThreadView: View {
     }
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 20) {
+        if !paged.isDone { ProgressView().frame(maxWidth: .infinity).onAppear { size += 50 } }
         ForEach(turns, id: \.first) { turn in
           HStack(alignment: .top, spacing: 10) {
-            Identicon(seed: turn[0].authorId, size: 28)
+            Avatar(id: turn[0].authorId, size: 28)
             VStack(alignment: .leading, spacing: 6) {
               HStack {
                 Text(names.name(turn[0].authorId)).fontWeight(.semibold)
@@ -60,9 +63,10 @@ struct ThreadView: View {
         }
       }
     }
-    .live("threads:messages", $messages, with: ["threadId": threadId])
+    .live("threads:messages", $paged, with: ["threadId": threadId], page: size)
+    .live("threads:row", $row, with: ["threadId": threadId])
     .task(id: messages.count) {
-      if row?.unread == true { run("threads:mark", ["threadId": threadId, "unread": false]) }
+      if let row, row.unread { store.change(row, "mark") { $0.unread = false } }
     }
     .environment(
       \.openURL,
