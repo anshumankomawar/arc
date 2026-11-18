@@ -63,9 +63,13 @@ test("an invitation by email waits for that person, who joins or declines it", a
   const ada = await signUp("ada");
   const eve = await signUp("eve");
   const linus = await signUp("linus");
-  await ada.as.mutation(api.workspace.invite, {
+  const already = await ada.as.mutation(api.workspace.invite, {
     emails: ["Eve@acme.com", "linus@acme.com", "ada@acme.com", "not an email"],
   });
+  expect(already).toEqual(["ada@acme.com"]);
+  expect(await ada.as.mutation(api.workspace.invite, { emails: ["eve@acme.com"] })).toEqual([
+    "eve@acme.com",
+  ]);
   expect(await ada.as.query(api.workspace.pending)).toMatchObject([
     { email: "eve@acme.com" },
     { email: "linus@acme.com" },

@@ -47,8 +47,6 @@ const invitedTo = (ctx: QueryCtx, invite: string) =>
     .withIndex("invite", (q) => q.eq("invite", invite))
     .unique();
 
-const linkTo = (invite: string) => `${process.env.SITE_URL}/join/${invite}`;
-
 async function owner(ctx: Ctx) {
   if ((await memberOf(ctx, ctx.me.workspaceId, ctx.me._id))?.role !== "owner")
     throw new ConvexError("Only an owner can do that");
@@ -222,35 +220,26 @@ export const inviteLink = mutation({
     const workspace = (await ctx.db.get(ctx.me.workspaceId))!;
     const invite = workspace.invite ?? crypto.randomUUID();
     if (!workspace.invite) await ctx.db.patch(workspace._id, { invite });
-    return linkTo(invite);
-  },
-});
-
-export const resetLink = mutation({
-  args: {},
-  returns: v.string(),
-  handler: async (ctx) => {
-    await owner(ctx);
-    const invite = crypto.randomUUID();
-    await ctx.db.patch(ctx.me.workspaceId, { invite });
-    return linkTo(invite);
+    return `${process.env.SITE_URL}/join/${invite}`;
   },
 });
 
 export const invite = mutation({
   args: { emails: v.array(v.string()) },
-  returns: v.null(),
+  returns: v.array(v.string()),
   handler: async (ctx, { emails }) => {
     const { workspaceId, _id } = ctx.me;
     const members = await Promise.all(
       (await membersIn(ctx, workspaceId)).map((row) => ctx.db.get(row.userId)),
     );
     const taken = new Set(members.map((user) => user?.email.toLowerCase()));
+    const already = [];
     for (const email of new Set(emails.map((email) => email.trim().toLowerCase()))) {
-      if (!EMAIL.test(email) || taken.has(email) || (await invitationTo(ctx, workspaceId, email)))
-        continue;
-      await ctx.db.insert("invitations", { workspaceId, email, invitedBy: _id });
+      if (!EMAIL.test(email)) continue;
+      if (taken.has(email) || (await invitationTo(ctx, workspaceId, email))) already.push(email);
+      else await ctx.db.insert("invitations", { workspaceId, email, invitedBy: _id });
     }
+    return already;
   },
 });
 
@@ -359,14 +348,21 @@ export const groups = query({
 
 export const saveGroup = mutation({
   args: { id: v.optional(v.id("groups")), name: v.string(), userIds: v.array(v.id("users")) },
-  returns: v.null(),
+  returns: v.union(v.id("groups"), v.null()),
   handler: async (ctx, { id, ...group }) => {
     const { workspaceId } = ctx.me;
     const members = await Promise.all(
       group.userIds.map((userId) => memberOf(ctx, workspaceId, userId)),
     );
     if (members.some((member) => !member)) throw new ConvexError("Not found");
-    if (!id) return void (await ctx.db.insert("groups", { workspaceId, ...group }));
+    const named = await ctx.db
+      .query("groups")
+      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const lower = group.name.toLowerCase();
+    if (named.some((other) => other._id !== id && other.name.toLowerCase() === lower))
+      throw new ConvexError(`There's already a group called ${group.name}.`);
+    if (!id) return await ctx.db.insert("groups", { workspaceId, ...group });
     if ((await ctx.db.get(id))?.workspaceId !== workspaceId) throw new ConvexError("Not found");
     await ctx.db.patch(id, group);
   },

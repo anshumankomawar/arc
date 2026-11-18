@@ -94,6 +94,9 @@ test("mentioning a group brings in everyone in it", async () => {
     name: "design",
     userIds: [grace._id, linus._id],
   });
+  await expect(
+    grace.as.mutation(api.workspace.saveGroup, { name: "Design", userIds: [] }),
+  ).rejects.toThrow("already a group called Design");
   const [group] = await t.run((ctx) => ctx.db.query("groups").collect());
   await ada.as.mutation(api.threads.start, { body: `${groupToken(group._id)} review?` });
 
