@@ -53,6 +53,13 @@ bunx convex env set SITE_URL http://localhost:5173  # once: where invite links p
 `bun run deploy:web` builds the site against the shared deployment and publishes it to Cloudflare with the `cf` CLI
 (`cloudflare.config.ts` names it and sends every path to `index.html`).
 
+## The iOS app
+
+`ios/` is a SwiftUI app on the shared deployment, with what the desktop has: buckets, threads, replies with @mentions
+and attachments, Sent, drafts, search, workspaces with invitations, and settings. Open
+`ios/Arc.xcodeproj` in Xcode and run it. Google returns its sign-in through the same `http://127.0.0.1:47201` as the
+desktop.
+
 ## The shared deployment
 
 `bun run dev` talks to your own dev deployment, where you can break things. The built app talks to the one everyone
