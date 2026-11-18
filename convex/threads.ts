@@ -1,9 +1,11 @@
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { memberOf, membership, mutation, query, type Ctx } from "./functions";
+import { joined, memberOf, membership, mutation, query, titled, type Ctx } from "./functions";
 import { urlsIn } from "./links";
+import schema from "./schema";
 import { FILE_LIMIT, fileToken, mentions, titleOf } from "./text";
 
 const attached = v.array(
@@ -120,6 +122,7 @@ export async function post(
         activeAt,
         inbox: false,
         unread: false,
+        sent: userId === authorId,
       }));
     if (userId === authorId) {
       await ctx.db.patch(memberId, { activeAt, unread: false });
@@ -130,61 +133,139 @@ export async function post(
   }
 }
 
-export const list = query({
+async function rowOf(ctx: Ctx, row: Doc<"members">) {
+  const { threadId, activeAt, inbox, unread, sent, bucketId } = row;
+  const { title, lastAuthorId, lastBody } = (await ctx.db.get(threadId))!;
+  return { threadId, activeAt, inbox, unread, sent, bucketId, title, lastAuthorId, lastBody };
+}
+
+export type Row = Awaited<ReturnType<typeof rowOf>>;
+
+export const row_ = v.object({
+  threadId: v.id("threads"),
+  activeAt: v.number(),
+  inbox: v.boolean(),
+  unread: v.boolean(),
+  sent: v.boolean(),
+  bucketId: v.optional(v.id("buckets")),
+  title: v.string(),
+  lastAuthorId: v.id("users"),
+  lastBody: v.string(),
+});
+export const hit = schema.doc("messages").extend({ title: v.string() });
+const shown = schema.doc("messages").extend({
+  links: v.array(
+    v.object({
+      _id: v.id("links"),
+      url: v.string(),
+      title: v.string(),
+      description: v.string(),
+      site: v.string(),
+      image: v.boolean(),
+    }),
+  ),
+  files: v.array(schema.doc("files").pick("_id", "name", "size", "thumb", "snippet")),
+});
+
+export const inbox = query({
   args: {},
+  returns: v.array(row_),
   handler: async (ctx) => {
+    const { _id, workspaceId } = ctx.me;
     const rows = await ctx.db
       .query("members")
-      .withIndex("user", (q) => q.eq("userId", ctx.me._id).eq("workspaceId", ctx.me.workspaceId))
+      .withIndex("inbox", (q) =>
+        q.eq("userId", _id).eq("workspaceId", workspaceId).eq("inbox", true),
+      )
       .order("desc")
-      .take(500);
-    return Promise.all(
-      rows.map(async ({ threadId, activeAt, inbox, unread, bucketId }) => {
-        const { title, ownerId, lastAuthorId, lastBody } = (await ctx.db.get(threadId))!;
-        const sent = ownerId === ctx.me._id;
-        return { threadId, activeAt, inbox, unread, bucketId, title, sent, lastAuthorId, lastBody };
+      .take(200);
+    return Promise.all(rows.map((row) => rowOf(ctx, row)));
+  },
+});
+
+export const list = query({
+  args: { sent: v.boolean(), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(row_),
+  handler: async (ctx, { sent, paginationOpts }) => {
+    const { _id, workspaceId } = ctx.me;
+    const mine = ctx.db.query("members");
+    const result = await (
+      sent
+        ? mine.withIndex("sent", (q) =>
+            q.eq("userId", _id).eq("workspaceId", workspaceId).eq("sent", true),
+          )
+        : mine.withIndex("user", (q) => q.eq("userId", _id).eq("workspaceId", workspaceId))
+    )
+      .order("desc")
+      .paginate(paginationOpts);
+    return { ...result, page: await Promise.all(result.page.map((row) => rowOf(ctx, row))) };
+  },
+});
+
+export const row = query({
+  args: { threadId: v.id("threads") },
+  returns: row_,
+  handler: async (ctx, { threadId }) => rowOf(ctx, await membership(ctx, threadId)),
+});
+
+export const found = query({
+  args: { threadIds: v.array(v.string()) },
+  returns: v.array(row_),
+  handler: async (ctx, { threadIds }) => {
+    const rows = await Promise.all(
+      threadIds.slice(0, 20).map(async (id) => {
+        const threadId = ctx.db.normalizeId("threads", id);
+        const mine = threadId && (await membership(ctx, threadId).catch(() => null));
+        return mine ? [await rowOf(ctx, mine)] : [];
       }),
     );
+    return rows.flat();
   },
 });
 
 export const messages = query({
-  args: { threadId: v.id("threads") },
-  handler: async (ctx, { threadId }) => {
+  args: { threadId: v.id("threads"), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(shown),
+  handler: async (ctx, { threadId, paginationOpts }) => {
     await membership(ctx, threadId);
-    const messages = await ctx.db
+    const result = await ctx.db
       .query("messages")
       .withIndex("thread", (q) => q.eq("threadId", threadId))
-      .collect();
-    const files = await ctx.db
-      .query("files")
-      .withIndex("thread", (q) => q.eq("threadId", threadId))
-      .collect();
-    const links = await ctx.db
-      .query("links")
-      .withIndex("thread", (q) => q.eq("threadId", threadId))
-      .collect();
-    return messages.map((message) => ({
-      ...message,
-      links: links
-        .filter((link) => link.messageId === message._id)
-        .map(({ _id, url, title, description, site, storageId }) => ({
-          _id,
-          url,
-          title,
-          description,
-          site,
-          image: !!storageId,
-        })),
-      files: files
-        .filter((file) => file.messageId === message._id && !file.hidden)
-        .map(({ _id, name, size, thumb, snippet }) => ({ _id, name, size, thumb, snippet })),
-    }));
+      .order("desc")
+      .paginate(paginationOpts);
+    const page = await Promise.all(
+      result.page.map(async (message) => {
+        const files = await ctx.db
+          .query("files")
+          .withIndex("message", (q) => q.eq("messageId", message._id))
+          .take(64);
+        const links = await ctx.db
+          .query("links")
+          .withIndex("message", (q) => q.eq("messageId", message._id))
+          .take(3);
+        return {
+          ...message,
+          links: links.map(({ _id, url, title, description, site, storageId }) => ({
+            _id,
+            url,
+            title,
+            description,
+            site,
+            image: !!storageId,
+          })),
+          files: files
+            .filter((file) => !file.hidden)
+            .map(({ _id, name, size, thumb, snippet }) => ({ _id, name, size, thumb, snippet })),
+        };
+      }),
+    );
+    return { ...result, page };
   },
 });
 
 export const search = query({
   args: { text: v.string() },
+  returns: v.array(hit),
   handler: async (ctx, { text }) => {
     const hits = await ctx.db
       .query("messages")
@@ -192,15 +273,11 @@ export const search = query({
         q.search("body", text).eq("workspaceId", ctx.me.workspaceId),
       )
       .take(50);
-    const mine = await Promise.all(
-      hits.map((hit) =>
-        membership(ctx, hit.threadId).then(
-          () => [hit],
-          () => [],
-        ),
-      ),
+    const open = await joined(
+      ctx,
+      hits.map((hit) => hit.threadId),
     );
-    return mine.flat().slice(0, 20);
+    return titled(ctx, hits.filter((hit) => open.has(hit.threadId)).slice(0, 20));
   },
 });
 
@@ -208,7 +285,6 @@ export async function begin(ctx: MutationCtx & Ctx, body: string, files?: Attach
   const threadId = await ctx.db.insert("threads", {
     workspaceId: ctx.me.workspaceId,
     title: titleOf(body),
-    ownerId: ctx.me._id,
     lastAuthorId: ctx.me._id,
     lastBody: body,
   });
@@ -218,11 +294,13 @@ export async function begin(ctx: MutationCtx & Ctx, body: string, files?: Attach
 
 export const start = mutation({
   args: { body: v.string(), files: v.optional(attached) },
+  returns: v.id("threads"),
   handler: (ctx, { body, files }) => begin(ctx, body, files),
 });
 
 export const send = mutation({
   args: { threadId: v.id("threads"), body: v.string(), files: v.optional(attached) },
+  returns: v.null(),
   handler: async (ctx, { threadId, body, files }) => {
     await membership(ctx, threadId);
     await post(ctx, threadId, body, files);
@@ -235,6 +313,7 @@ export const mark = mutation({
     inbox: v.optional(v.boolean()),
     unread: v.optional(v.boolean()),
   },
+  returns: v.null(),
   handler: async (ctx, { threadId, ...state }) => {
     const row = await membership(ctx, threadId);
     await ctx.db.patch(row._id, state);
@@ -243,6 +322,7 @@ export const mark = mutation({
 
 export const move = mutation({
   args: { threadId: v.id("threads"), bucketId: v.optional(v.id("buckets")) },
+  returns: v.null(),
   handler: async (ctx, { threadId, bucketId }) => {
     const row = await membership(ctx, threadId);
     const bucket = bucketId && (await ctx.db.get(bucketId));

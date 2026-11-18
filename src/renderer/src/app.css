@@ -317,7 +317,7 @@ small {
     margin: 9px 8px 0;
   }
   & .head + [data-slot="listbox"] {
-    padding-top: 2px;
+    padding-top: 6px;
   }
   & .switcher {
     display: flex;
@@ -455,6 +455,18 @@ small {
     gap: 18px;
     max-width: 850px;
     padding: 14px 26px 44px 31px;
+  }
+  & .earlier {
+    align-self: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 7px;
+    color: var(--text-3);
+
+    &:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
   }
   & .turn {
     display: flex;

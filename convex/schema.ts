@@ -6,11 +6,13 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     workspaceId: v.optional(v.id("workspaces")),
-  }),
+  }).index("email", ["email"]),
 
-  workspaces: defineTable({ name: v.string(), invite: v.optional(v.string()) }).index("invite", [
-    "invite",
-  ]),
+  workspaces: defineTable({
+    name: v.string(),
+    people: v.number(),
+    invite: v.optional(v.string()),
+  }).index("invite", ["invite"]),
 
   memberships: defineTable({
     userId: v.id("users"),
@@ -37,7 +39,6 @@ export default defineSchema({
   threads: defineTable({
     workspaceId: v.id("workspaces"),
     title: v.string(),
-    ownerId: v.optional(v.id("users")),
     lastAuthorId: v.id("users"),
     lastBody: v.string(),
   }).index("workspace", ["workspaceId"]),
@@ -63,6 +64,7 @@ export default defineSchema({
     thumb: v.optional(v.object({ id: v.id("files"), width: v.number(), height: v.number() })),
   })
     .index("thread", ["threadId"])
+    .index("message", ["messageId"])
     .index("storage", ["storageId"])
     .index("workspace", ["workspaceId"]),
 
@@ -75,7 +77,9 @@ export default defineSchema({
     description: v.string(),
     site: v.string(),
     storageId: v.optional(v.id("_storage")),
-  }).index("thread", ["threadId"]),
+  })
+    .index("thread", ["threadId"])
+    .index("message", ["messageId"]),
 
   vectors: defineTable({
     workspaceId: v.id("workspaces"),
@@ -97,9 +101,13 @@ export default defineSchema({
     activeAt: v.number(),
     inbox: v.boolean(),
     unread: v.boolean(),
+    sent: v.boolean(),
     bucketId: v.optional(v.id("buckets")),
   })
     .index("user", ["userId", "workspaceId", "activeAt"])
+    .index("inbox", ["userId", "workspaceId", "inbox", "activeAt"])
+    .index("sent", ["userId", "workspaceId", "sent", "activeAt"])
+    .index("bucket", ["bucketId"])
     .index("thread", ["threadId", "userId"]),
 
   buckets: defineTable({

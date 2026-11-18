@@ -1,11 +1,11 @@
-import { useMutation } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex-helpers/react/cache";
 import { Button } from "@ui-sdk/react/button";
 import { usePreference } from "@ui-sdk/react/preferences";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { createTokenInputController } from "@ui-sdk/react/token-input";
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   api,
   LINK,
@@ -15,7 +15,6 @@ import {
   useMe,
   useNames,
   useSend,
-  useThreads,
   type Attached,
   type Id,
 } from "./data";
@@ -25,7 +24,9 @@ import { FileLabel, MessageBox } from "./MessageBox";
 import { editDraft, go, previews, removeDraft, useUI, type Draft } from "./state";
 import { ago } from "./time";
 
-type Message = FunctionReturnType<typeof api.threads.messages>[number];
+const PAGE = 30;
+
+type Message = FunctionReturnType<typeof api.threads.messages>["page"][number];
 
 function Body({ body }: { body: string }) {
   const { name } = useNames();
@@ -62,7 +63,7 @@ function Shot(props: { id: Id<"files"> | Id<"links">; alt: string; style?: CSSPr
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     let made = "";
-    void bytes({ id: props.id }).then(
+    void bytes(props.id).then(
       (loaded) => setUrl((made = URL.createObjectURL(new Blob([loaded])))),
       () => {},
     );
@@ -157,8 +158,14 @@ export function DraftView({ draft }: { draft: Draft }) {
 }
 
 export function Thread({ threadId }: { threadId: Id<"threads"> }) {
-  const messages = useQuery(api.threads.messages, { threadId }) ?? [];
-  const unread = useThreads().find((row) => row.threadId === threadId)?.unread;
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.threads.messages,
+    { threadId },
+    { initialNumItems: PAGE },
+  );
+  const messages = [...results].reverse();
+  const unread = useQuery(api.threads.row, { threadId })?.unread;
+  const height = useRef(0);
   const { name } = useNames();
   const send = useSend();
   const mark = useMark();
@@ -177,11 +184,25 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   }, [threadId, unread, mark]);
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [threadId, messages.length]);
+  }, [threadId, results[0]?._id]);
+  useLayoutEffect(() => {
+    const thread = scroller.current;
+    if (thread && height.current) thread.scrollTop += thread.scrollHeight - height.current;
+    height.current = 0;
+  }, [results.length]);
+  const earlier = () => {
+    height.current = scroller.current!.scrollHeight;
+    loadMore(PAGE);
+  };
 
   return (
     <main ref={scroller} className="thread">
       <article style={{ zoom: `${useUI((ui) => ui.scale)}%` }}>
+        {status === "CanLoadMore" && (
+          <Button className="earlier" onClick={earlier}>
+            Earlier Messages
+          </Button>
+        )}
         {turns.map((turn) => (
           <section key={turn[0]._id} className="turn">
             <Identicon seed={turn[0].authorId} />

@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import { api } from "../convex/_generated/api";
-import { world } from "./world";
+import { listOf, world } from "./world";
 
 test("a new account has buckets and no workspace until it creates one", async () => {
   const { signIn } = world();
   const ada = await signIn("ada");
   expect(await ada.query(api.workspace.me)).not.toHaveProperty("workspaceId");
-  await expect(ada.query(api.threads.list)).rejects.toThrow();
+  await expect(ada.query(api.threads.inbox)).rejects.toThrow();
 
   await ada.mutation(api.workspace.create, { name: "Acme" });
   expect(await ada.query(api.workspace.me)).toMatchObject({ workspace: "Acme" });
@@ -48,8 +48,8 @@ test("someone can be in several workspaces and switch between them", async () =>
   });
   expect(await eve.as.query(api.workspace.me)).toMatchObject({ workspace: "ada's workspace" });
   expect(await eve.as.query(api.workspace.workspaces)).toMatchObject([
-    { name: "eve's workspace" },
-    { name: "ada's workspace" },
+    { name: "eve's workspace", people: 1 },
+    { name: "ada's workspace", people: 2 },
   ]);
 
   await eve.as.mutation(api.workspace.open, { id: eve.workspaceId! });
@@ -96,13 +96,14 @@ test("leaving or being removed takes someone out, and the last one out deletes i
   ).rejects.toThrow();
   await ada.as.mutation(api.workspace.removePerson, { userId: linus._id });
   await expect(linus.as.mutation(api.workspace.leave, { id: ada.workspaceId! })).rejects.toThrow();
-  await expect(linus.as.query(api.threads.list)).rejects.toThrow();
+  await expect(listOf(linus)).rejects.toThrow();
 
   await ada.as.mutation(api.workspace.leave, { id: ada.workspaceId! });
   expect(await ada.as.query(api.workspace.me)).not.toHaveProperty("workspaceId");
   expect(await grace.as.query(api.workspace.people)).toMatchObject([
     { name: "grace", role: "owner" },
   ]);
+  expect(await grace.as.query(api.workspace.workspaces)).toMatchObject([{ people: 1 }]);
 
   await grace.as.mutation(api.workspace.removeWorkspace);
   expect(await grace.as.query(api.workspace.workspaces)).toEqual([]);

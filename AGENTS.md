@@ -47,8 +47,23 @@ Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's 
   `decline`, `open`, `leave`); they call `signedIn` themselves.
 - An action has no `ctx.me`: it reaches data only through those queries and mutations (`convex/search.ts`).
 - A message's delivery lives in `post` in `convex/threads.ts`. Change it with its tests, in `tests/`.
-- A file's bytes leave storage only through `download` in `convex/files.ts`, which checks membership. Never give a
+- A file's bytes leave storage only through the `/file` route in `convex/http.ts`, which checks membership (`stored`
+  in `convex/files.ts`) and lets the browser cache them. Never give a
   client a storage URL (`ctx.storage.getUrl`): anyone holding one can fetch the file without signing in.
 - A `[[file:id]]` in a message shares that file with the thread: `post` copies its row there, after checking the sender
   is in the thread it came from.
 - After adding or removing a dependency, restart `bun run dev`: a running dev server keeps its old bundle of them.
+
+<!-- convex-ai-start -->
+
+This project uses [Convex](https://convex.dev) as its backend.
+
+When working on Convex code, **always read
+`convex/_generated/ai/guidelines.md` first** for important guidelines on
+how to correctly use Convex APIs and patterns. The file contains rules that
+override what you may have learned about Convex from training data.
+
+Convex agent skills for common tasks can be installed by running
+`npx convex ai-files install`.
+
+<!-- convex-ai-end -->

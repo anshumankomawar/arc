@@ -12,6 +12,7 @@ import type * as ai from "../ai.js";
 import type * as auth from "../auth.js";
 import type * as files from "../files.js";
 import type * as functions from "../functions.js";
+import type * as http from "../http.js";
 import type * as links from "../links.js";
 import type * as search from "../search.js";
 import type * as simulate from "../simulate.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   files: typeof files;
   functions: typeof functions;
+  http: typeof http;
   links: typeof links;
   search: typeof search;
   simulate: typeof simulate;
@@ -66,5 +68,6 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   auth: import("@convex-dev/auth/_generated/component.js").ComponentApi<"auth">;
+  actionCache: import("@convex-dev/action-cache/_generated/component.js").ComponentApi<"actionCache">;
   authGoogle: import("@convex-dev/auth/components/google/_generated/component.js").ComponentApi<"authGoogle">;
 };

@@ -1,5 +1,5 @@
 import { Listbox, ListboxGroup, ListboxGroupLabel, ListboxItem } from "@ui-sdk/react/listbox";
-import { sections, useBuckets, useMark, useMove, useNames, useThreads, type Row } from "./data";
+import { sections, useBuckets, useMark, useMove, useNames, useRows, type Row } from "./data";
 import { Icon } from "./Icon";
 import { ContextMenu, type MenuEntry } from "./Menu";
 import { go, removeDraft, useUI, useView } from "./state";
@@ -7,7 +7,7 @@ import { stamp } from "./time";
 
 export function List() {
   const { box, thread, draft: open } = useView();
-  const rows = useThreads();
+  const { rows, more } = useRows(box);
   const buckets = useBuckets();
   const drafts = useUI((ui) => ui.drafts);
   const names = useNames();
@@ -74,6 +74,9 @@ export function List() {
         <Listbox
           aria-label="Threads"
           className="scroll"
+          onScroll={({ currentTarget: list }) =>
+            list.scrollHeight - list.scrollTop - list.clientHeight < 400 && more?.()
+          }
           value={thread ?? null}
           onValueChange={(threadId) => threadId && go({ thread: threadId })}
         >

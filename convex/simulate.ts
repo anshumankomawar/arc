@@ -94,7 +94,7 @@ export const start = internalMutation({
   handler: async (ctx, { email }) => {
     const me = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("email"), email))
+      .withIndex("email", (q) => q.eq("email", email))
       .unique();
     if (!me?.workspaceId) throw new Error(`No account in a workspace for ${email}`);
     const { workspaceId } = me;
@@ -108,6 +108,8 @@ export const start = internalMutation({
       await ctx.db.insert("memberships", { userId, workspaceId, role: "member" });
       userIds.push(userId);
     }
+    const { people } = (await ctx.db.get(workspaceId))!;
+    await ctx.db.patch(workspaceId, { people: people + TEAM.length });
     await ctx.db.insert("groups", { workspaceId, name: "design", userIds: [me._id, ...userIds] });
     await ctx.scheduler.runAfter(0, internal.simulate.step, {
       meId: me._id,

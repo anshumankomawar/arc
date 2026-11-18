@@ -9,6 +9,9 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { memberOf, mutation, query, signedIn, type Ctx } from "./functions";
+import schema from "./schema";
+
+const role = v.union(v.literal("owner"), v.literal("member"));
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,8 +60,11 @@ async function enter(
   workspaceId: Id<"workspaces">,
   role: "owner" | "member" = "member",
 ) {
-  if (!(await memberOf(ctx, workspaceId, me._id)))
+  if (!(await memberOf(ctx, workspaceId, me._id))) {
     await ctx.db.insert("memberships", { userId: me._id, workspaceId, role });
+    const { people } = (await ctx.db.get(workspaceId))!;
+    await ctx.db.patch(workspaceId, { people: people + 1 });
+  }
   const invitation = await invitationTo(ctx, workspaceId, me.email.toLowerCase());
   if (invitation) await ctx.db.delete(invitation._id);
   await ctx.db.patch(me._id, { workspaceId });
@@ -88,12 +94,16 @@ async function depart(ctx: MutationCtx, workspaceId: Id<"workspaces">, userId: I
   const rest = rows.filter((row) => row !== leaving);
   if (!rest.length) return remove(ctx, workspaceId);
   await ctx.db.delete(leaving._id);
+  await ctx.db.patch(workspaceId, { people: rest.length });
   if (!rest.some((row) => row.role === "owner")) await ctx.db.patch(rest[0]._id, { role: "owner" });
   await moveOut(ctx, userId, workspaceId);
 }
 
 export const me = rawQuery({
   args: {},
+  returns: schema
+    .doc("users")
+    .extend({ workspace: v.optional(v.string()), role: v.optional(role) }),
   handler: async (ctx) => {
     const { workspaceId, ...me } = await signedIn(ctx);
     const member = workspaceId && (await memberOf(ctx, workspaceId, me._id));
@@ -109,20 +119,21 @@ export const me = rawQuery({
 
 export const workspaces = rawQuery({
   args: {},
+  returns: v.array(v.object({ _id: v.id("workspaces"), name: v.string(), people: v.number() })),
   handler: async (ctx) => {
     const rows = await membershipsOf(ctx, (await signedIn(ctx))._id);
     return Promise.all(
-      rows.map(async (row) => ({
-        _id: row.workspaceId,
-        name: (await ctx.db.get(row.workspaceId))!.name,
-        people: (await membersIn(ctx, row.workspaceId)).length,
-      })),
+      rows.map(async (row) => {
+        const { _id, name, people } = (await ctx.db.get(row.workspaceId))!;
+        return { _id, name, people };
+      }),
     );
   },
 });
 
 export const invitations = rawQuery({
   args: {},
+  returns: v.array(v.object({ _id: v.id("invitations"), workspace: v.string(), from: v.string() })),
   handler: async (ctx) => {
     const me = await signedIn(ctx);
     const rows = await ctx.db
@@ -141,20 +152,28 @@ export const invitations = rawQuery({
 
 export const invited = rawQuery({
   args: { invite: v.string() },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, { invite }) => (await invitedTo(ctx, invite))?.name ?? null,
 });
 
 export const create = rawMutation({
   args: { name: v.string() },
+  returns: v.null(),
   handler: async (ctx, { name }) => {
     if (!name.trim()) throw new ConvexError("A workspace needs a name");
     const me = await signedIn(ctx);
-    await enter(ctx, me, await ctx.db.insert("workspaces", { name: name.trim() }), "owner");
+    await enter(
+      ctx,
+      me,
+      await ctx.db.insert("workspaces", { name: name.trim(), people: 0 }),
+      "owner",
+    );
   },
 });
 
 export const join = rawMutation({
   args: { link: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, { link }) => {
     const me = await signedIn(ctx);
     const invite = link.trim().split("/").pop();
@@ -166,6 +185,7 @@ export const join = rawMutation({
 
 export const accept = rawMutation({
   args: { id: v.id("invitations") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     const me = await signedIn(ctx);
     const invitation = await ctx.db.get(id);
@@ -176,6 +196,7 @@ export const accept = rawMutation({
 
 export const decline = rawMutation({
   args: { id: v.id("invitations") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     const me = await signedIn(ctx);
     if ((await ctx.db.get(id))?.email !== me.email.toLowerCase())
@@ -186,6 +207,7 @@ export const decline = rawMutation({
 
 export const open = rawMutation({
   args: { id: v.id("workspaces") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     const me = await signedIn(ctx);
     if (!(await memberOf(ctx, id, me._id))) throw new ConvexError("Not found");
@@ -195,6 +217,7 @@ export const open = rawMutation({
 
 export const inviteLink = mutation({
   args: {},
+  returns: v.string(),
   handler: async (ctx) => {
     const workspace = (await ctx.db.get(ctx.me.workspaceId))!;
     const invite = workspace.invite ?? crypto.randomUUID();
@@ -205,6 +228,7 @@ export const inviteLink = mutation({
 
 export const resetLink = mutation({
   args: {},
+  returns: v.string(),
   handler: async (ctx) => {
     await owner(ctx);
     const invite = crypto.randomUUID();
@@ -215,6 +239,7 @@ export const resetLink = mutation({
 
 export const invite = mutation({
   args: { emails: v.array(v.string()) },
+  returns: v.null(),
   handler: async (ctx, { emails }) => {
     const { workspaceId, _id } = ctx.me;
     const members = await Promise.all(
@@ -231,11 +256,13 @@ export const invite = mutation({
 
 export const pending = query({
   args: {},
+  returns: v.array(schema.doc("invitations")),
   handler: (ctx) => invitationsTo(ctx, ctx.me.workspaceId),
 });
 
 export const revoke = mutation({
   args: { id: v.id("invitations") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
       throw new ConvexError("Not found");
@@ -245,6 +272,7 @@ export const revoke = mutation({
 
 export const rename = mutation({
   args: { name: v.string() },
+  returns: v.null(),
   handler: async (ctx, { name }) => {
     await owner(ctx);
     if (name.trim()) await ctx.db.patch(ctx.me.workspaceId, { name: name.trim() });
@@ -253,11 +281,13 @@ export const rename = mutation({
 
 export const leave = rawMutation({
   args: { id: v.id("workspaces") },
+  returns: v.null(),
   handler: async (ctx, { id }) => depart(ctx, id, (await signedIn(ctx))._id),
 });
 
 export const removePerson = mutation({
   args: { userId: v.id("users") },
+  returns: v.null(),
   handler: async (ctx, { userId }) => {
     await owner(ctx);
     if (userId === ctx.me._id) throw new ConvexError("Leave the workspace instead");
@@ -267,6 +297,7 @@ export const removePerson = mutation({
 
 export const removeWorkspace = mutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     await owner(ctx);
     await remove(ctx, ctx.me.workspaceId);
@@ -304,24 +335,9 @@ export const purge = internalMutation({
   },
 });
 
-export const backfill = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    for (const user of await ctx.db.query("users").collect()) {
-      const { workspaceId } = user;
-      if (!workspaceId || (await memberOf(ctx, workspaceId, user._id))) continue;
-      const first = !(await membersIn(ctx, workspaceId)).length;
-      await ctx.db.insert("memberships", {
-        userId: user._id,
-        workspaceId,
-        role: first ? "owner" : "member",
-      });
-    }
-  },
-});
-
 export const people = query({
   args: {},
+  returns: v.array(schema.doc("users").extend({ role })),
   handler: async (ctx) =>
     Promise.all(
       (await membersIn(ctx, ctx.me.workspaceId)).map(async (row) => ({
@@ -333,6 +349,7 @@ export const people = query({
 
 export const groups = query({
   args: {},
+  returns: v.array(schema.doc("groups")),
   handler: (ctx) =>
     ctx.db
       .query("groups")
@@ -342,6 +359,7 @@ export const groups = query({
 
 export const saveGroup = mutation({
   args: { id: v.optional(v.id("groups")), name: v.string(), userIds: v.array(v.id("users")) },
+  returns: v.null(),
   handler: async (ctx, { id, ...group }) => {
     const { workspaceId } = ctx.me;
     const members = await Promise.all(
@@ -356,6 +374,7 @@ export const saveGroup = mutation({
 
 export const removeGroup = mutation({
   args: { id: v.id("groups") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
       throw new ConvexError("Not found");
@@ -365,6 +384,7 @@ export const removeGroup = mutation({
 
 export const buckets = query({
   args: {},
+  returns: v.array(schema.doc("buckets")),
   handler: (ctx) =>
     ctx.db
       .query("buckets")
@@ -374,6 +394,7 @@ export const buckets = query({
 
 export const saveBucket = mutation({
   args: { id: v.optional(v.id("buckets")), name: v.string(), description: v.string() },
+  returns: v.null(),
   handler: async (ctx, { id, ...bucket }) => {
     if (!id) return void (await ctx.db.insert("buckets", { userId: ctx.me._id, ...bucket }));
     if ((await ctx.db.get(id))?.userId !== ctx.me._id) throw new ConvexError("Not found");
@@ -383,14 +404,15 @@ export const saveBucket = mutation({
 
 export const removeBucket = mutation({
   args: { id: v.id("buckets") },
+  returns: v.null(),
   handler: async (ctx, { id }) => {
     if ((await ctx.db.get(id))?.userId !== ctx.me._id) throw new ConvexError("Not found");
     await ctx.db.delete(id);
     const rows = await ctx.db
       .query("members")
-      .withIndex("user", (q) => q.eq("userId", ctx.me._id).eq("workspaceId", ctx.me.workspaceId))
+      .withIndex("bucket", (q) => q.eq("bucketId", id))
       .collect();
-    for (const row of rows.filter((row) => row.bucketId === id)) {
+    for (const row of rows) {
       await ctx.db.patch(row._id, { bucketId: undefined });
       await ctx.scheduler.runAfter(0, internal.ai.sort, { memberId: row._id });
     }

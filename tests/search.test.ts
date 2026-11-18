@@ -37,3 +37,14 @@ test("search by meaning finds only what is near, in threads the asker is in", as
   expect(await found(linus)).toEqual([]);
   expect(await found(eve)).toEqual([]);
 });
+
+test("a question asked again is embedded once", async () => {
+  const { signUp } = world();
+  const ada = await signUp("ada");
+  const embedded = vi.fn(fetch);
+  vi.stubGlobal("fetch", embedded);
+
+  await ada.as.action(api.search.related, { text: "lunch" });
+  await ada.as.action(api.search.related, { text: "lunch" });
+  expect(embedded).toHaveBeenCalledTimes(1);
+});

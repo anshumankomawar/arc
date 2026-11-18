@@ -5,6 +5,7 @@
     "": {
       "name": "arc",
       "dependencies": {
+        "@convex-dev/action-cache": "^0.3.2",
         "electron-updater": "^6.8.11",
       },
       "devDependencies": {
@@ -73,6 +74,8 @@
     "@babel/traverse": ["@babel/traverse@7.29.14", "", { "dependencies": { "@babel/code-frame": "^7.29.7", "@babel/generator": "^7.29.14", "@babel/helper-globals": "^7.29.7", "@babel/parser": "^7.29.14", "@babel/template": "^7.29.7", "@babel/types": "^7.29.14", "debug": "^4.3.1" } }, "sha512-RAdQJrBgmIH1FWvN0X+1hoDxzMzlP4cv/1Zi4dn4tG1H0cTb+rw7CzUxQJhp1f4ANd8j5vH3fy8BAWFGkBDEsA=="],
 
     "@babel/types": ["@babel/types@7.29.14", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.14", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-UjI/dKmwJwT9pOszJitq2G6EObZPnsZUfdCr92z2TlF3EZK9J3EdfOKUrCzHl6wFthbzwhzl1Soc/UIwxRiq6w=="],
+
+    "@convex-dev/action-cache": ["@convex-dev/action-cache@0.3.2", "", { "peerDependencies": { "convex": "^1.24.8" } }, "sha512-Emc6tIZBPAVDsdA4S1Y0/sNI0KhsBWTcoRvTI17iQxvAUQWIa0uAbVFjIiLX8dEYMls9+iXd3pIjXR7A3xGYjA=="],
 
     "@convex-dev/auth": ["@convex-dev/auth@2.0.0", "", { "dependencies": { "@convex-dev/batch-worker": "^0.3.2", "@convex-dev/rate-limiter": "^0.3.2", "@simplewebauthn/browser": "^14.0.0", "@simplewebauthn/server": "^14.0.0", "cookie": "1.1.1", "jose": "^5.2.2", "password-hash-wasm": "0.0.0" }, "peerDependencies": { "@convex-dev/resend": "^0.2.8", "convex": "^1.48.0", "next": "^16.0.0", "react": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["@convex-dev/resend", "next", "react"] }, "sha512-x8tj4BeEkm9R/SlrrVvGS4jvHle4okGM2Ldni7q0KK1lKTpX0QCMDrULagqLUVTepyik23T+TXzcAurNXL1EEg=="],
 

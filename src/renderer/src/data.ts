@@ -1,21 +1,28 @@
+import { useAuthToken } from "@convex-dev/auth/react";
 import { confirm } from "@ui-sdk/react/alert-dialog";
-import { useAction, useMutation } from "convex/react";
+import {
+  insertAtTop,
+  optimisticallyUpdateValueInPaginatedQuery,
+  useMutation,
+  usePaginatedQuery,
+} from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
-import type { FunctionArgs } from "convex/server";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { useQuery } from "convex-helpers/react/cache";
 import { useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { mentions, plain } from "../../../convex/text";
+import { plain } from "../../../convex/text";
 import type { Box } from "./state";
 
 export { api };
 export { FILE_LIMIT, LINK, mentions, parts } from "../../../convex/text";
 export type { Doc, Id };
-export type Row = ReturnType<typeof useThreads>[number];
+export type Row = FunctionReturnType<typeof api.threads.inbox>[number];
 export type Attached = NonNullable<FunctionArgs<typeof api.threads.send>["files"]>[number];
 
 const EMPTY: never[] = [];
+const PAGE = 40;
 const sizes = new Map<string, number>();
 const opening = new Set<string>();
 const TEXT =
@@ -71,11 +78,18 @@ export function useUpload() {
   };
 }
 export function useFiles() {
-  const bytes = useAction(api.files.download);
+  const token = useAuthToken();
   type Sent = { _id: Id<"files">; name: string };
+  const bytes = async (id: Id<"files"> | Id<"links">) => {
+    const response = await fetch(`${import.meta.env.VITE_CONVEX_SITE_URL}/file?id=${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`File answered ${response.status}`);
+    return response.arrayBuffer();
+  };
   const download = async ({ _id, name }: Sent) => {
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([await bytes({ id: _id })]));
+    link.href = URL.createObjectURL(new Blob([await bytes(_id)]));
     link.download = name;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
@@ -83,7 +97,7 @@ export function useFiles() {
   const look = async ({ _id, name }: Sent) => {
     if (opening.has(_id)) return;
     opening.add(_id);
-    await bytes({ id: _id })
+    await bytes(_id)
       .then((loaded) => window.desktop!.preview(name, loaded))
       .finally(() => opening.delete(_id));
   };
@@ -100,7 +114,7 @@ export const usePending = () => useQuery(api.workspace.pending) ?? EMPTY;
 export const usePeople = () => useQuery(api.workspace.people) ?? EMPTY;
 export const useGroups = () => useQuery(api.workspace.groups) ?? EMPTY;
 export const useBuckets = () => useQuery(api.workspace.buckets) ?? EMPTY;
-export const useThreads = () => useQuery(api.threads.list) ?? EMPTY;
+export const useInbox = () => useQuery(api.threads.inbox) ?? EMPTY;
 export const useDocuments = () => useQuery(api.files.mine) ?? EMPTY;
 
 export function useNames() {
@@ -116,14 +130,23 @@ export function useNames() {
 }
 
 export const inBox = (rows: Row[], box: Box) =>
-  box === "all"
-    ? rows
-    : box === "sent"
-      ? rows.filter((row) => row.sent)
-      : rows.filter((row) => row.inbox && (box === "inbox" ? row.bucketId : row.bucketId === box));
+  rows.filter((row) => (box === "inbox" ? row.bucketId : row.bucketId === box));
 
-export function sections(rows: Row[], box: Box, buckets: Doc<"buckets">[]) {
-  const listed = inBox(rows, box);
+export function useRows(box: Box) {
+  const inbox = useInbox();
+  const paged = box === "all" || box === "sent";
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.threads.list,
+    paged ? { sent: box === "sent" } : "skip",
+    { initialNumItems: PAGE },
+  );
+  return {
+    rows: paged ? results : inBox(inbox, box),
+    more: status === "CanLoadMore" ? () => loadMore(PAGE) : undefined,
+  };
+}
+
+export function sections(listed: Row[], box: Box, buckets: Doc<"buckets">[]) {
   if (box !== "inbox") return [{ title: "", rows: listed }];
   return buckets
     .map((bucket) => ({
@@ -134,13 +157,18 @@ export function sections(rows: Row[], box: Box, buckets: Doc<"buckets">[]) {
 }
 
 function patchRow(store: OptimisticLocalStore, threadId: Id<"threads">, change: Partial<Row>) {
-  const rows = store.getQuery(api.threads.list, {});
-  if (!rows) return;
-  store.setQuery(
-    api.threads.list,
-    {},
-    rows.map((row) => (row.threadId === threadId ? { ...row, ...change } : row)),
-  );
+  const patch = (row: Row) => (row.threadId === threadId ? { ...row, ...change } : row);
+  const inbox = store.getQuery(api.threads.inbox, {});
+  if (inbox)
+    store.setQuery(
+      api.threads.inbox,
+      {},
+      inbox.map(patch).filter((row) => row.inbox),
+    );
+  const row = store.getQuery(api.threads.row, { threadId });
+  if (row) store.setQuery(api.threads.row, { threadId }, patch(row));
+  for (const sent of [true, false])
+    optimisticallyUpdateValueInPaginatedQuery(store, api.threads.list, { sent }, patch);
 }
 
 export const useMark = () =>
@@ -156,32 +184,28 @@ export const useMove = () =>
 export const useSend = () =>
   useMutation(api.threads.send).withOptimisticUpdate((store, { threadId, body, files = [] }) => {
     const me = store.getQuery(api.workspace.me, {});
-    const messages = store.getQuery(api.threads.messages, { threadId });
-    if (!me?.workspaceId || !messages) return;
-    const here = new Set(messages.flatMap((message) => message.files.map((file) => file._id)));
-    const referred = (store.getQuery(api.files.mine, {}) ?? []).filter(
-      (file) => mentions(body, "file").includes(file._id) && !here.has(file._id),
-    );
-    const sent = {
-      _id: crypto.randomUUID() as Id<"messages">,
-      _creationTime: Date.now(),
-      workspaceId: me.workspaceId,
-      threadId,
-      authorId: me._id,
-      body,
-      files: [
-        ...files.map(({ storageId, name, thumb, snippet }) => ({
+    if (!me?.workspaceId) return;
+    insertAtTop({
+      paginatedQuery: api.threads.messages,
+      argsToMatch: { threadId },
+      localQueryStore: store,
+      item: {
+        _id: crypto.randomUUID() as Id<"messages">,
+        _creationTime: Date.now(),
+        workspaceId: me.workspaceId,
+        threadId,
+        authorId: me._id,
+        body,
+        files: files.map(({ storageId, name, thumb, snippet }) => ({
           _id: storageId as string as Id<"files">,
           name,
           snippet,
           size: sizes.get(storageId) ?? 0,
           thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
         })),
-        ...referred.map((file) => ({ ...file, snippet: undefined, thumb: undefined })),
-      ],
-      links: [],
-    };
-    store.setQuery(api.threads.messages, { threadId }, [...messages, sent]);
+        links: [],
+      },
+    });
     patchRow(store, threadId, {
       lastAuthorId: me._id,
       lastBody: body || files.map((file) => file.name).join(", "),

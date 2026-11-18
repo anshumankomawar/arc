@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import { describe } from "../convex/links";
 import { personToken } from "../convex/text";
-import { world } from "./world";
+import { bytesOf, listOf, messagesOf, world } from "./world";
 
 const PAGE = `<html><head><title>Fallback</title>
   <meta content="Launch &amp; pricing" property="og:title">
@@ -45,16 +45,14 @@ test("a link in a message gets a preview that only the thread's members see", as
   });
   await t.finishAllScheduledFunctions(vi.runAllTimers);
 
-  const [message] = await grace.as.query(api.threads.messages, { threadId });
+  const [message] = await messagesOf(grace, threadId);
   expect(message.links).toMatchObject([
     { url: "https://acme.com/launch", title: "Launch & pricing", image: true },
   ]);
   const { _id: id } = message.links[0];
-  expect(new TextDecoder().decode(await grace.as.action(api.files.download, { id }))).toBe(
-    "pixels",
-  );
-  await expect(linus.as.query(api.threads.messages, { threadId })).rejects.toThrow();
-  await expect(linus.as.action(api.files.download, { id })).rejects.toThrow();
+  expect(new TextDecoder().decode(await bytesOf(grace, id))).toBe("pixels");
+  await expect(messagesOf(linus, threadId)).rejects.toThrow();
+  await expect(bytesOf(linus, id)).rejects.toThrow();
 });
 
 test("a message can be only its files", async () => {
@@ -70,5 +68,5 @@ test("a message can be only its files", async () => {
     body: "",
     files: [{ storageId, name: "plan.txt" }],
   });
-  expect(await ada.as.query(api.threads.list)).toMatchObject([{ lastBody: "plan.txt" }]);
+  expect(await listOf(ada)).toMatchObject([{ lastBody: "plan.txt" }]);
 });

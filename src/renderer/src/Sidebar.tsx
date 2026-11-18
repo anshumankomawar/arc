@@ -17,7 +17,7 @@ import {
   useInvitations,
   useMe,
   useRemoveBucket,
-  useThreads,
+  useInbox,
   useWorkspaces,
   type Id,
 } from "./data";
@@ -73,7 +73,7 @@ function Switcher() {
 export function Sidebar() {
   const me = useMe()!;
   const view = useView();
-  const rows = useThreads();
+  const rows = useInbox();
   const buckets = useBuckets();
   const removeBucket = useRemoveBucket();
   const editBuckets: MenuEntry = {

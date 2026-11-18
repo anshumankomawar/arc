@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { ActionCache } from "@convex-dev/action-cache";
 import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import { v } from "convex/values";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import {
   action,
@@ -10,8 +11,9 @@ import {
   internalQuery,
   type ActionCtx,
 } from "./_generated/server";
-import { membership, query } from "./functions";
+import { membership, query, titled } from "./functions";
 import { plain } from "./text";
+import { hit, row_, type Row } from "./threads";
 
 const NEAR = 0.35;
 
@@ -27,6 +29,17 @@ async function embed(input: string, input_type: "document" | "query"): Promise<n
   if (!response.ok) throw new Error(`Voyage answered ${response.status}`);
   return (await response.json()).data[0].embedding;
 }
+
+export const embedQuery = internalAction({
+  args: { text: v.string() },
+  handler: (_ctx, { text }): Promise<number[]> => embed(text, "query"),
+});
+
+const asked = new ActionCache(components.actionCache, {
+  action: internal.search.embedQuery,
+  name: "voyage-4-lite query",
+  ttl: 7 * 24 * 60 * 60 * 1000,
+});
 
 export const source = internalQuery({
   args: { messageId: v.id("messages") },
@@ -73,6 +86,7 @@ export const index = internalAction({
 
 export const visible = query({
   args: { ids: v.array(v.id("vectors")) },
+  returns: v.array(hit),
   handler: async (ctx, { ids }) => {
     const found = await Promise.all(
       ids.map(async (id) => {
@@ -84,15 +98,17 @@ export const visible = query({
         );
       }),
     );
-    return found.flat();
+    return titled(ctx, found.flat());
   },
 });
 
-async function nearest(ctx: ActionCtx, text: string, floor: number): Promise<Doc<"messages">[]> {
+type Hit = Doc<"messages"> & { title: string };
+
+async function nearest(ctx: ActionCtx, text: string, floor: number): Promise<Hit[]> {
   const { workspaceId } = await ctx.runQuery(api.workspace.me);
   if (!process.env.VOYAGE_API_KEY || !workspaceId) return [];
   const hits = await ctx.vectorSearch("vectors", "near", {
-    vector: await embed(text, "query"),
+    vector: await asked.fetch(ctx, { text }),
     limit: 32,
     filter: (q) => q.eq("workspaceId", workspaceId),
   });
@@ -103,12 +119,14 @@ async function nearest(ctx: ActionCtx, text: string, floor: number): Promise<Doc
 
 export const related = action({
   args: { text: v.string() },
+  returns: v.array(hit),
   handler: (ctx, { text }) => nearest(ctx, text, NEAR),
 });
 
 export const ask = action({
   args: { question: v.string() },
-  handler: async (ctx, { question }): Promise<string[] | null> => {
+  returns: v.union(v.array(row_), v.null()),
+  handler: async (ctx, { question }): Promise<Row[] | null> => {
     if (!process.env.ANTHROPIC_API_KEY) return null;
     const named = [
       ...(await ctx.runQuery(api.workspace.people)),
@@ -163,6 +181,6 @@ export const ask = action({
     });
     const found = response.content.find((block) => block.type === "text");
     if (response.stop_reason !== "end_turn" || !found) return null;
-    return JSON.parse(found.text).threadIds;
+    return ctx.runQuery(api.threads.found, { threadIds: JSON.parse(found.text).threadIds });
   },
 });

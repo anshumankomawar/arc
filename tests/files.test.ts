@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { api } from "../convex/_generated/api";
 import { FILE_LIMIT, fileToken, personToken } from "../convex/text";
-import { world } from "./world";
+import { bytesOf, listOf, messagesOf, world } from "./world";
 
 async function setup() {
   const { t, signUp } = world();
@@ -20,15 +20,15 @@ test("a file goes with its message to the thread's members and nobody else", asy
     files: [{ storageId: await store("secret"), name: "plan.txt" }],
   });
 
-  const [message] = await grace.as.query(api.threads.messages, { threadId });
+  const [message] = await messagesOf(grace, threadId);
   expect(message.files).toMatchObject([{ name: "plan.txt", size: 6 }]);
   const { _id: id } = message.files[0];
-  const bytes = await grace.as.action(api.files.download, { id });
+  const bytes = await bytesOf(grace, id);
   expect(new TextDecoder().decode(bytes)).toBe("secret");
 
   for (const outsider of [linus, eve]) {
     await expect(outsider.as.query(api.files.stored, { id })).rejects.toThrow();
-    await expect(outsider.as.action(api.files.download, { id })).rejects.toThrow();
+    await expect(bytesOf(outsider, id)).rejects.toThrow();
   }
 });
 
@@ -50,10 +50,10 @@ test("a thumbnail is kept with its file, and can't be someone else's file", asyn
     body: "notes",
     files: [{ storageId: await store("x"), name: "notes.md", snippet: "a".repeat(2000) }],
   });
-  const [{ files }, notes] = await grace.as.query(api.threads.messages, { threadId });
+  const [{ files }, notes] = await messagesOf(grace, threadId);
   expect(notes.files[0].snippet).toHaveLength(1500);
   expect(files).toMatchObject([{ name: "a.png", thumb: { width: 4, height: 3 } }]);
-  const small = await grace.as.action(api.files.download, { id: files[0].thumb!.id });
+  const small = await bytesOf(grace, files[0].thumb!.id);
   expect(new TextDecoder().decode(small)).toBe("small");
 
   await expect(
@@ -82,7 +82,7 @@ test("referencing a file shares it with the new thread, if the sender can open i
       },
     ],
   });
-  const [{ files }] = await grace.as.query(api.threads.messages, { threadId: first });
+  const [{ files }] = await messagesOf(grace, first);
   const [plan] = files;
   expect(await grace.as.query(api.files.mine)).toMatchObject([{ _id: plan._id, name: "plan.png" }]);
   expect(await linus.as.query(api.files.mine)).toEqual([]);
@@ -96,17 +96,16 @@ test("referencing a file shares it with the new thread, if the sender can open i
   const second = await grace.as.mutation(api.threads.start, {
     body: `${personToken(linus._id)} see ${fileToken(plan._id)}`,
   });
-  const [message] = await linus.as.query(api.threads.messages, { threadId: second });
+  const [message] = await messagesOf(linus, second);
   const [shared] = message.files;
   expect(shared).toMatchObject({ name: "plan.png" });
   expect(shared._id).not.toBe(plan._id);
   expect(message.body).toContain(fileToken(shared._id));
-  const read = async (id: typeof plan._id) =>
-    new TextDecoder().decode(await linus.as.action(api.files.download, { id }));
+  const read = async (id: typeof plan._id) => new TextDecoder().decode(await bytesOf(linus, id));
   expect(await read(shared._id)).toBe("secret");
   expect(await read(shared.thumb!.id)).toBe("small");
   await expect(read(plan._id)).rejects.toThrow();
-  expect(await linus.as.query(api.threads.list)).toMatchObject([
+  expect(await listOf(linus)).toMatchObject([
     { lastBody: expect.stringContaining("see plan.png") },
   ]);
   expect(await grace.as.query(api.files.mine)).toHaveLength(1);
@@ -123,5 +122,5 @@ test("a stored file can be attached once, and only if it is small enough", async
   await send(ada, grace);
   await expect(send(linus, grace)).rejects.toThrow();
   await expect(send(ada, grace, await store(new Uint8Array(FILE_LIMIT + 1)))).rejects.toThrow();
-  expect(await linus.as.query(api.threads.list)).toEqual([]);
+  expect(await listOf(linus)).toEqual([]);
 });

@@ -1,3 +1,4 @@
+import actionCache from "@convex-dev/action-cache/convex.config.js";
 import authGoogle from "@convex-dev/auth/components/google/convex.config.js";
 import auth from "@convex-dev/auth/convex.config.js";
 import { defineApp } from "convex/server";
@@ -7,6 +8,7 @@ const app = defineApp({
   env: { AUTH_GOOGLE_CLIENT_ID: v.string(), AUTH_GOOGLE_CLIENT_SECRET: v.string() },
 });
 app.use(auth);
+app.use(actionCache);
 app.use(authGoogle, {
   httpPrefix: "/oauth/google",
   env: {

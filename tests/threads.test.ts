@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { api } from "../convex/_generated/api";
 import { groupToken, personToken } from "../convex/text";
-import { world } from "./world";
+import { listOf, messagesOf, world } from "./world";
 
 async function setup() {
   const { t, signUp } = world();
@@ -9,8 +9,7 @@ async function setup() {
   const grace = await signUp("grace", ada);
   const linus = await signUp("linus", ada);
   const eve = await signUp("eve");
-  const inbox = async (who: typeof ada) =>
-    (await who.as.query(api.threads.list)).filter((row) => row.inbox);
+  const inbox = async (who: typeof ada) => who.as.query(api.threads.inbox);
   return { t, ada, grace, linus, eve, inbox };
 }
 
@@ -19,15 +18,14 @@ test("a new thread reaches who it mentions, not who wrote it", async () => {
   await ada.as.mutation(api.threads.start, { body: `${personToken(grace._id)} lunch?\nat noon` });
 
   expect(await inbox(ada)).toEqual([]);
-  expect(await ada.as.query(api.threads.list)).toMatchObject([{ title: "lunch?", unread: false }]);
+  expect(await listOf(ada)).toMatchObject([{ title: "lunch?", unread: false }]);
   expect(await inbox(grace)).toMatchObject([{ title: "lunch?", unread: true }]);
-  expect(await linus.as.query(api.threads.list)).toEqual([]);
+  expect(await listOf(linus)).toEqual([]);
 });
 
 test("sent lists the threads you started", async () => {
   const { ada, grace } = await setup();
-  const sent = async (who: typeof ada) =>
-    (await who.as.query(api.threads.list)).filter((row) => row.sent).map((row) => row.title);
+  const sent = async (who: typeof ada) => (await listOf(who, true)).map((row) => row.title);
   const threadId = await ada.as.mutation(api.threads.start, {
     body: `${personToken(grace._id)} lunch?`,
   });
@@ -37,14 +35,34 @@ test("sent lists the threads you started", async () => {
   expect(await sent(grace)).toEqual([]);
 });
 
+test("messages come a page at a time, newest first", async () => {
+  const { ada, grace } = await setup();
+  const threadId = await ada.as.mutation(api.threads.start, {
+    body: `${personToken(grace._id)} one`,
+  });
+  for (const body of ["two", "three"])
+    await grace.as.mutation(api.threads.send, { threadId, body });
+  const page = (cursor: string | null) =>
+    ada.as.query(api.threads.messages, { threadId, paginationOpts: { numItems: 2, cursor } });
+
+  const latest = await page(null);
+  expect(latest.page.map((message) => message.body)).toEqual(["three", "two"]);
+  const rest = await page(latest.continueCursor);
+  expect(rest.page).toMatchObject([{ body: expect.stringContaining("one") }]);
+  expect(await ada.as.query(api.threads.row, { threadId })).toMatchObject({ unread: true });
+  expect(
+    await ada.as.query(api.threads.found, { threadIds: [threadId, "nonsense"] }),
+  ).toMatchObject([{ title: "one", sent: true }]);
+});
+
 test("a thread needs someone besides its author", async () => {
   const { ada, grace } = await setup();
   const start = (body: string) => ada.as.mutation(api.threads.start, { body });
   await expect(start("note to self")).rejects.toThrow();
   await expect(start(`${personToken(ada._id)} note to self`)).rejects.toThrow();
-  expect(await ada.as.query(api.threads.list)).toEqual([]);
+  expect(await listOf(ada)).toEqual([]);
   await start(`${personToken(grace._id)} hi`);
-  expect(await ada.as.query(api.threads.list)).toHaveLength(1);
+  expect(await listOf(ada)).toHaveLength(1);
 });
 
 test("a message reaches everyone in the thread but its author", async () => {
@@ -89,9 +107,9 @@ test("threads stay inside their workspace and their members", async () => {
     body: `${personToken(grace._id)} ${personToken(eve._id)} secret plans`,
   });
 
-  expect(await eve.as.query(api.threads.list)).toEqual([]);
-  await expect(eve.as.query(api.threads.messages, { threadId })).rejects.toThrow();
-  await expect(linus.as.query(api.threads.messages, { threadId })).rejects.toThrow();
+  expect(await listOf(eve)).toEqual([]);
+  await expect(messagesOf(eve, threadId)).rejects.toThrow();
+  await expect(messagesOf(linus, threadId)).rejects.toThrow();
   await expect(linus.as.mutation(api.threads.send, { threadId, body: "hi" })).rejects.toThrow();
   expect(await linus.as.query(api.threads.search, { text: "secret" })).toEqual([]);
   expect(await grace.as.query(api.threads.search, { text: "secret" })).toHaveLength(1);

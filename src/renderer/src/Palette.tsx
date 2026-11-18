@@ -4,17 +4,17 @@ import { fuzzyScore } from "@ui-sdk/core/text-match";
 import { Command, CommandInput, CommandItem, CommandList } from "@ui-sdk/react/command";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
-import { useAction, useMutation } from "convex/react";
-import { useQuery } from "convex-helpers/react/cache";
+import { useAction, useConvex, useMutation } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   api,
   useBuckets,
   useCopyInvite,
   useNames,
-  useThreads,
+  useInbox,
   type Attached,
-  type Doc,
+  type Row,
 } from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
@@ -63,32 +63,32 @@ function Modal(props: {
 }
 
 type Item = { value: string; label: string; hint?: string; run: () => unknown };
+type Hit = FunctionReturnType<typeof api.threads.search>[number];
 
 export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const [text, setText] = useState("");
-  const rows = useThreads();
+  const rows = useInbox();
   const buckets = useBuckets();
   const names = useNames();
   const { signOut } = useAuthActions();
   const copyInvite = useCopyInvite();
   const query = text.trim();
-  const worded = useQuery(
-    api.threads.search,
-    threadsOnly && query.length > 1 ? { text: query } : "skip",
-  );
+  const convex = useConvex();
   const related = useAction(api.search.related);
-  const near = useAsyncOptions<Doc<"messages">>(async (text) =>
-    text.length > 1 ? related({ text }) : [],
-  );
+  const near = useAsyncOptions<Hit>(async (text) => {
+    if (text.length < 2) return [];
+    const worded = convex.query(api.threads.search, { text });
+    return [...(await worded), ...(await related({ text }).catch(() => []))];
+  });
   const ask = useAction(api.search.ask);
-  const [found, setFound] = useState<string[] | "asking">();
+  const [found, setFound] = useState<Row[] | "asking">();
   const asked = useRef("");
 
   const consult = async () => {
     asked.current = query;
     setFound("asking");
-    const threadIds = await ask({ question: query }).catch(() => null);
-    if (asked.current === query) setFound(threadIds ?? []);
+    const answer = await ask({ question: query }).catch(() => null);
+    if (asked.current === query) setFound(answer ?? []);
   };
 
   const command = (label: string, run: () => void, hint?: string): Item => ({
@@ -116,17 +116,18 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     command("Copy the invite link", copyInvite),
     command("Sign out", () => void signOut().then(reset)),
   ];
-  const threads = rows.map((row) => ({
+  const thread = (row: Row): Item => ({
     value: row.threadId,
     label: row.title,
     hint: names.text(row.lastBody),
     run: () => go({ thread: row.threadId }),
-  }));
-  const hits = new Map([...(worded ?? []), ...near.items].map((hit) => [hit._id, hit]));
+  });
+  const threads = rows.map(thread);
+  const hits = new Map(near.items.map((hit) => [hit._id, hit]));
   const messages = [...hits.values()].map((hit) => ({
     value: hit._id,
     label: names.text(hit.body),
-    hint: rows.find((row) => row.threadId === hit.threadId)?.title,
+    hint: hit.title,
     run: () => go({ thread: hit.threadId }),
   }));
   const local = threadsOnly ? threads : commands;
@@ -135,9 +136,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
     .map(({ item }) => item);
-  const picked = Array.isArray(found)
-    ? found.flatMap((id) => threads.filter((thread) => thread.value === id))
-    : [];
+  const picked = Array.isArray(found) ? found.map(thread) : [];
   const items: Item[] = picked.length
     ? picked
     : !query
@@ -145,7 +144,8 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
       : threadsOnly
         ? [...scored, ...messages]
         : scored;
-  const empty = threadsOnly && !!worded && near.status === "idle" && !items.length && !found;
+  const empty =
+    threadsOnly && query.length > 1 && near.status === "idle" && !items.length && !found;
   useEffect(() => {
     if (!empty) return;
     const soon = setTimeout(consult, 400);

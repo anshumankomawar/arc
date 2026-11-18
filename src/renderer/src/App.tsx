@@ -3,7 +3,7 @@ import { Resizable, ResizableHandle, ResizablePanel } from "@ui-sdk/react/resiza
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { Toolbar, ToolbarButton, ToolbarGroup } from "@ui-sdk/react/toolbar";
 import { useEffect } from "react";
-import { sections, useBuckets, useMark, useMe, useThreads } from "./data";
+import { sections, useBuckets, useMark, useMe, useRows } from "./data";
 import { Icon } from "./Icon";
 import { List } from "./List";
 import { NewMessage, Search } from "./Palette";
@@ -28,7 +28,7 @@ const BUCKET_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 function useShortcuts() {
   const view = useView();
-  const rows = useThreads();
+  const { rows } = useRows(view.box);
   const buckets = useBuckets();
   const mark = useMark();
   const threadId = view.thread;

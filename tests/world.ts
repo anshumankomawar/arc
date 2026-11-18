@@ -1,17 +1,35 @@
+import actionCacheTest from "@convex-dev/action-cache/test";
 import googleTest from "@convex-dev/auth/components/google/test";
 import authTest from "@convex-dev/auth/test";
 import { convexTest } from "convex-test";
 import { createFunctionHandle } from "convex/server";
 import { api, components, internal } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 import schema from "../convex/schema";
 
 const modules = import.meta.glob("../convex/**/*.ts");
 const MONTH = 30 * 24 * 60 * 60;
 
+type As = { as: Awaited<ReturnType<ReturnType<typeof world>["signIn"]>> };
+const everything = { numItems: 100, cursor: null };
+
+export const messagesOf = async (who: As, threadId: Id<"threads">) =>
+  (
+    await who.as.query(api.threads.messages, { threadId, paginationOpts: everything })
+  ).page.reverse();
+export const listOf = async (who: As, sent = false) =>
+  (await who.as.query(api.threads.list, { sent, paginationOpts: everything })).page;
+export async function bytesOf(who: As, id: Id<"files"> | Id<"links">) {
+  const response = await who.as.fetch(`/file?id=${id}`);
+  if (!response.ok) throw new Error("Not found");
+  return response.arrayBuffer();
+}
+
 export function world() {
   const t = convexTest(schema, modules);
   authTest.registerCore(t);
   googleTest.registerGoogleOauth(t);
+  actionCacheTest.register(t);
 
   const signIn = async (name: string) => {
     const tokens = await t.run(async (ctx) =>
