@@ -18,7 +18,7 @@ import {
   type Attached,
   type Id,
 } from "./data";
-import { Identicon } from "./Identicon";
+import { Face } from "./Face";
 import { ContextMenu } from "./Menu";
 import { FileLabel, MessageBox } from "./MessageBox";
 import { editDraft, go, previews, removeDraft, useUI, type Draft } from "./state";
@@ -123,7 +123,7 @@ function Compose(props: Parameters<typeof MessageBox>[0]) {
   const me = useMe()!;
   return (
     <section className="turn">
-      <Identicon seed={me._id} />
+      <Face id={me._id} />
       <div>
         <div className="meta">
           <b>{me.name}</b>
@@ -205,7 +205,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
         )}
         {turns.map((turn) => (
           <section key={turn[0]._id} className="turn">
-            <Identicon seed={turn[0].authorId} />
+            <Face id={turn[0].authorId} />
             <div>
               <div className="meta">
                 <b>{name(turn[0].authorId)}</b>

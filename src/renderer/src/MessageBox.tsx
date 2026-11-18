@@ -39,7 +39,7 @@ import {
   type Attached,
 } from "./data";
 import { Icon, type IconName } from "./Icon";
-import { Identicon } from "./Identicon";
+import { Face } from "./Face";
 import { useUI } from "./state";
 
 const KINDS: [IconName, string][] = [
@@ -190,7 +190,7 @@ export function MessageBox(props: {
                       {item.value.startsWith("file:") ? (
                         <Icon name={kindOf(item.label)} />
                       ) : (
-                        <Identicon seed={item.value.split(":")[1]} size={18} />
+                        <Face id={item.value.split(":")[1]} name={item.label} size={18} />
                       )}
                       {item.label}
                     </TriggerMenuItem>

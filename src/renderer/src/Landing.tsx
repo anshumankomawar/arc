@@ -2,7 +2,7 @@ import { Button } from "@ui-sdk/react/button";
 import { Listbox, ListboxGroup, ListboxGroupLabel, ListboxItem } from "@ui-sdk/react/listbox";
 import { usePreference } from "@ui-sdk/react/preferences";
 import { Icon, type IconName } from "./Icon";
-import { Identicon } from "./Identicon";
+import { Face } from "./Face";
 import { useReady, Welcome } from "./SignIn";
 import { theme } from "./state";
 
@@ -115,7 +115,7 @@ function Shot() {
           <article>
             {turns.map(([author, time, text]) => (
               <section key={author + time} className="turn">
-                <Identicon seed={author} />
+                <Face name={author} />
                 <div>
                   <div className="meta">
                     <b>{author}</b>

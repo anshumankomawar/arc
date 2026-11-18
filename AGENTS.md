@@ -23,6 +23,7 @@ What's already in use, and where:
 | ⌘K, ⌘F and New Message                  | Command, Dialog                                   | `Palette.tsx`                            |
 | Right-click menus, the workspace picker | Menu                                              | `Menu.tsx`, `Sidebar.tsx`                |
 | People in a group                       | Combobox                                          | `Settings.tsx`                           |
+| A person's picture                      | Avatar                                            | `Face.tsx`                               |
 | Columns                                 | Resizable                                         | `App.tsx`                                |
 | Keys                                    | `useShortcut`                                     | `App.tsx`, `Thread.tsx`                  |
 | Theme, and whether previews show        | `createPreference`                                | `state.ts`                               |

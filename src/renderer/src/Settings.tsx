@@ -34,7 +34,7 @@ import {
   type Id,
 } from "./data";
 import { Icon } from "./Icon";
-import { Identicon } from "./Identicon";
+import { Face } from "./Face";
 import { previews, reset, setDialog, switched, theme, useUI } from "./state";
 
 const saveOnLeave = (event: FocusEvent<HTMLFormElement>) => {
@@ -168,7 +168,7 @@ function Current() {
       <div className="members">
         {people.map((person) => (
           <div key={person._id} className="row">
-            <Identicon seed={person._id} size={20} />
+            <Face id={person._id} size={20} />
             <span className="clip">{person.name}</span>
             {person.role === "owner" ? (
               <small>Owner</small>
@@ -430,7 +430,7 @@ function Groups() {
                   <ComboboxList>
                     {others.map((person) => (
                       <ComboboxItem key={person._id} value={person._id} label={person.name}>
-                        <Identicon seed={person._id} size={16} />
+                        <Face id={person._id} size={16} />
                         {person.name}
                       </ComboboxItem>
                     ))}
@@ -442,7 +442,7 @@ function Groups() {
             <div className="members">
               {members.map((person) => (
                 <div key={person._id} className="row">
-                  <Identicon seed={person._id} size={20} />
+                  <Face id={person._id} size={20} />
                   <span className="clip">{person.name}</span>
                   <small>{person.email}</small>
                   <Button
@@ -517,7 +517,7 @@ export function Settings() {
 
           <Section title="Account" hint="Signed in with Google.">
             <div className="row">
-              <Identicon seed={me._id} size={20} />
+              <Face id={me._id} size={20} />
               <span className="clip">{me.name}</span>
               <small>{me.email}</small>
               <Button onClick={() => void signOut().then(reset)}>Sign Out</Button>

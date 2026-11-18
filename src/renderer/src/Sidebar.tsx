@@ -22,7 +22,7 @@ import {
   type Id,
 } from "./data";
 import { Icon, type IconName } from "./Icon";
-import { Identicon } from "./Identicon";
+import { Face } from "./Face";
 import { ContextMenu, type MenuEntry } from "./Menu";
 import { go, setDialog, switched, useView, type Box } from "./state";
 
@@ -132,7 +132,7 @@ export function Sidebar() {
         )}
       </Listbox>
       <Button className="profile" onClick={() => setDialog("settings")}>
-        <Identicon seed={me._id} size={20} />
+        <Face id={me._id} size={20} />
         <span className="clip">{me.name}</span>
       </Button>
     </aside>

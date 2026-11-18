@@ -74,8 +74,8 @@ export function Welcome({ workspace }: { workspace?: string | null }) {
       </h1>
       <p>
         {workspace
-          ? "Sign in with your Google account to accept the invite."
-          : "Arc is team messaging in threads that sort themselves. Sign in with your Google account."}
+          ? "Sign in to accept the invite."
+          : "Arc is team messaging in threads that sort themselves."}
       </p>
       <Button onClick={signIn} disabled={busy}>
         {busy ? <i /> : <Icon name="google" size={18} />}

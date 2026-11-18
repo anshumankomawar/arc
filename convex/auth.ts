@@ -27,6 +27,7 @@ export const createUser = internalMutation({
     const userId = await ctx.db.insert("users", {
       name: profile.name ?? "",
       email: profile.email ?? "",
+      image: profile.picture,
     });
     for (const [name, description] of BUCKETS)
       await ctx.db.insert("buckets", { userId, name, description });
