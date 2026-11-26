@@ -17,21 +17,32 @@ export function List() {
   const listed = groups.flatMap((group) => group.rows);
   const total = box === "drafts" ? drafts.length : listed.length;
 
-  const entries = ({ threadId, inbox, bucketId }: Row): MenuEntry[] => [
-    { label: "Open", run: () => go({ thread: threadId }) },
-    "separator",
-    inbox
-      ? { label: "Done", run: () => void mark({ threadId, inbox: false }) }
-      : { label: "Move to Buckets", run: () => void mark({ threadId, inbox: true }) },
-    { label: "Mark Unread", run: () => void mark({ threadId, unread: true }) },
-    "separator",
-    ...buckets
-      .filter((bucket) => bucket._id !== bucketId)
-      .map((bucket) => ({
-        label: `Move to ${bucket.name}`,
-        run: () => void move({ threadId, bucketId: bucket._id }),
-      })),
-  ];
+  const entries = ({ threadId, title, inbox, unread, bucketId }: Row): MenuEntry[] => {
+    const others = buckets.filter((bucket) => bucket._id !== bucketId);
+    return [
+      { label: "Open", run: () => go({ thread: threadId }) },
+      "separator",
+      unread
+        ? { label: "Mark as Read", run: () => void mark({ threadId, unread: false }) }
+        : { label: "Mark as Unread", run: () => void mark({ threadId, unread: true }) },
+      inbox
+        ? { label: "Done", run: () => void mark({ threadId, inbox: false }) }
+        : { label: "Move to Buckets", run: () => void mark({ threadId, inbox: true }) },
+      ...(others.length
+        ? [
+            {
+              label: "Move to",
+              items: others.map((bucket) => ({
+                label: bucket.name,
+                run: () => void move({ threadId, bucketId: bucket._id }),
+              })),
+            },
+          ]
+        : []),
+      "separator",
+      { label: "Copy Title", run: () => void navigator.clipboard.writeText(title) },
+    ];
+  };
   const card = (row: Row) => (
     <ContextMenu key={row.threadId} entries={entries(row)}>
       <ListboxItem value={row.threadId} label={row.title} className="card">

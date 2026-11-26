@@ -18,6 +18,7 @@ import {
   useMe,
   useRemoveBucket,
   useInbox,
+  useMark,
   useWorkspaces,
   type Id,
 } from "./data";
@@ -76,17 +77,25 @@ export function Sidebar() {
   const rows = useInbox();
   const buckets = useBuckets();
   const removeBucket = useRemoveBucket();
+  const mark = useMark();
+  const compose: MenuEntry[] = [{ label: "New Message", run: () => setDialog("new") }];
   const editBuckets: MenuEntry = {
     label: "Edit Buckets",
     run: () => setDialog("settings", "Buckets"),
+  };
+  const markRead = (box: Box): MenuEntry[] => {
+    const unread = inBox(rows, box).filter((row) => row.unread);
+    if (!unread.length) return [];
+    const run = () => unread.forEach(({ threadId }) => void mark({ threadId, unread: false }));
+    return [{ label: "Mark All as Read", run }, "separator"];
   };
 
   const row = (
     box: Box,
     label: string,
     icon: IconName,
-    count?: number,
-    entries: MenuEntry[] = [editBuckets],
+    count: number | undefined,
+    entries: MenuEntry[],
     nested = false,
   ) => (
     <ContextMenu key={box} entries={entries}>
@@ -112,10 +121,10 @@ export function Sidebar() {
         value={view.box}
         onValueChange={(box) => box && go({ box, thread: undefined })}
       >
-        {row("all", "All Threads", "archive")}
-        {row("sent", "Sent", "sent")}
-        {row("drafts", "Drafts", "draft")}
-        {row("inbox", "Buckets", "inbox", count("inbox"))}
+        {row("all", "All Threads", "archive", undefined, compose)}
+        {row("sent", "Sent", "sent", undefined, compose)}
+        {row("drafts", "Drafts", "draft", undefined, compose)}
+        {row("inbox", "Buckets", "inbox", count("inbox"), [...markRead("inbox"), editBuckets])}
         {buckets.map((bucket) =>
           row(
             bucket._id,
@@ -123,6 +132,7 @@ export function Sidebar() {
             "folder",
             count(bucket._id),
             [
+              ...markRead(bucket._id),
               editBuckets,
               "separator",
               { label: "Delete Bucket", run: () => void removeBucket(bucket) },

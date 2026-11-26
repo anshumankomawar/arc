@@ -55,10 +55,14 @@ const kindOf = (name: string) => {
   const extension = name.split(".").pop()!.toLowerCase();
   return KINDS.find(([, extensions]) => extensions.split(" ").includes(extension))?.[0] ?? "attach";
 };
+const KindIcon = ({ name, size }: { name: string; size?: number }) => {
+  const kind = kindOf(name);
+  return <Icon name={kind} size={size} color={`var(--${kind})`} />;
+};
 
 export const FileLabel = ({ name, size }: { name: string; size: number }) => (
   <>
-    <Icon name={kindOf(name)} size={13} />
+    <KindIcon name={name} size={13} />
     <span className="clip">{name}</span>
     <small>{formatFileSize(size)}</small>
   </>
@@ -188,7 +192,7 @@ export function MessageBox(props: {
                   (state.items as TriggerMenuDataItem<string>[]).map((item) => (
                     <TriggerMenuItem key={item.value} value={item.value} label={item.label}>
                       {item.value.startsWith("file:") ? (
-                        <Icon name={kindOf(item.label)} />
+                        <KindIcon name={item.label} />
                       ) : (
                         <Face id={item.value.split(":")[1]} name={item.label} size={18} />
                       )}

@@ -13,7 +13,11 @@ import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { Input } from "@ui-sdk/react/input";
 import { Listbox, ListboxItem } from "@ui-sdk/react/listbox";
 import { usePreference } from "@ui-sdk/react/preferences";
-import { SegmentedControl, SegmentedControlItem } from "@ui-sdk/react/segmented-control";
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from "@ui-sdk/react/segmented-control";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { Textarea } from "@ui-sdk/react/textarea";
 import { useMutation } from "convex/react";
@@ -258,6 +262,16 @@ function Workspaces() {
   return (
     <TabsPanel value="Workspaces" className="split">
       <nav>
+        <header>
+          <span>Workspaces</span>
+          <Button
+            className="add"
+            aria-label="New Workspace"
+            onClick={() => setDialog("workspace", "start")}
+          >
+            <Icon name="plus" />
+          </Button>
+        </header>
         <Listbox
           aria-label="Workspaces"
           value={me.workspaceId}
@@ -273,10 +287,6 @@ function Workspaces() {
             </ListboxItem>
           ))}
         </Listbox>
-        <Button className="add" onClick={() => setDialog("workspace", "start")}>
-          <Icon name="plus" />
-          <span>New Workspace</span>
-        </Button>
       </nav>
       <div className="detail">
         {invitations.map((invitation) => (
@@ -331,6 +341,17 @@ function Groups() {
   return (
     <TabsPanel value="Groups" className="split">
       <nav>
+        <header>
+          <span>Groups</span>
+          <Button
+            className="add"
+            aria-label="New Group"
+            data-active={drafting || undefined}
+            onClick={() => open(selected, true)}
+          >
+            <Icon name="plus" />
+          </Button>
+        </header>
         <Listbox
           aria-label="Groups"
           value={group?._id ?? null}
@@ -342,14 +363,6 @@ function Groups() {
             </ListboxItem>
           ))}
         </Listbox>
-        <Button
-          className="add"
-          data-active={drafting || undefined}
-          onClick={() => open(selected, true)}
-        >
-          <Icon name="plus" />
-          <span>New Group</span>
-        </Button>
       </nav>
       <div className="detail">
         {drafting ? (
@@ -535,6 +548,7 @@ export function Settings() {
                 value={value}
                 onValueChange={(next) => next && theme.set(next as typeof value)}
               >
+                <SegmentedControlIndicator />
                 <SegmentedControlItem value="dark">Dark</SegmentedControlItem>
                 <SegmentedControlItem value="light">Light</SegmentedControlItem>
               </SegmentedControl>
@@ -546,6 +560,7 @@ export function Settings() {
                 value={shown}
                 onValueChange={(next) => next && previews.set(next as typeof shown)}
               >
+                <SegmentedControlIndicator />
                 <SegmentedControlItem value="on">On</SegmentedControlItem>
                 <SegmentedControlItem value="off">Off</SegmentedControlItem>
               </SegmentedControl>

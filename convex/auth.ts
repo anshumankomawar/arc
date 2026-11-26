@@ -16,7 +16,7 @@ export const { signOut, refreshSession, isAuthenticated } = auth;
 export const { startSignInWithGoogle, completeSignInWithGoogle } = setupGoogle(auth, {
   component: components.authGoogle,
   allowedRedirectOrigins: ["http://127.0.0.1:47201", process.env.SITE_URL!],
-}).attachUserCallbacks({ createUser: internal.auth.createUser });
+}).attachUserCallbacks({ createUser: internal.auth.createUser, onSignIn: internal.auth.onSignIn });
 
 const method = v.object({ name: v.literal("google"), profile: vGoogleProfile });
 
@@ -27,10 +27,18 @@ export const createUser = internalMutation({
     const userId = await ctx.db.insert("users", {
       name: profile.name ?? "",
       email: profile.email ?? "",
-      image: profile.picture,
     });
     for (const [name, description] of BUCKETS)
       await ctx.db.insert("buckets", { userId, name, description });
     return userId;
+  },
+});
+
+export const onSignIn = internalMutation({
+  args: { method, userId: v.id("users") },
+  returns: v.null(),
+  handler: async (ctx, { method: { profile }, userId }) => {
+    await ctx.db.patch(userId, { image: profile.picture });
+    return null;
   },
 });

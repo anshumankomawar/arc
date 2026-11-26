@@ -166,7 +166,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   const messages = [...results].reverse();
   const unread = useQuery(api.threads.row, { threadId })?.unread;
   const height = useRef(0);
-  const { name } = useNames();
+  const { name, text } = useNames();
   const send = useSend();
   const mark = useMark();
   const shown = usePreference(previews).value === "on";
@@ -214,9 +214,22 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
               {turn.map((message) => (
                 <Fragment key={message._id}>
                   {message.body && (
-                    <p className="text">
-                      <Body body={message.body} />
-                    </p>
+                    <ContextMenu
+                      entries={[
+                        {
+                          label: "Copy",
+                          run: () =>
+                            void navigator.clipboard.writeText(
+                              getSelection()?.toString() || text(message.body),
+                            ),
+                        },
+                        { label: "Reply", run: () => reply.focus() },
+                      ]}
+                    >
+                      <p className="text">
+                        <Body body={message.body} />
+                      </p>
+                    </ContextMenu>
                   )}
                   {message.files.length > 0 && (
                     <div className="files">
