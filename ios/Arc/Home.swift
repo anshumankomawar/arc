@@ -93,9 +93,7 @@ struct Stack<Content: View>: View {
     .onDisappear { shown = false }
     .onChange(of: store.opened) {
       guard shown, let thread = store.opened else { return }
-      var move = Transaction()
-      move.disablesAnimations = store.searching
-      withTransaction(move) { path = [thread] }
+      withTransaction(\.disablesAnimations, store.searching) { path = [thread] }
       store.opened = nil
     }
   }
@@ -371,7 +369,7 @@ struct Search: View {
                 .clip()
             }
           }
-                .foregroundStyle(.primary)
+          .foregroundStyle(.primary)
           .row()
         }
       }

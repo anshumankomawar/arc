@@ -1,4 +1,5 @@
 import { createLocalStorage, createPreference } from "@ui-sdk/core";
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -6,7 +7,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 export type Box = "inbox" | "all" | "sent" | "drafts" | (string & {});
 type View = { box: Box; thread?: Id<"threads">; draft?: string };
 export type Draft = { id: string; text: string; at: number };
-export type Dialog = "search" | "find" | "new" | "settings" | "workspace";
+type Dialog = "search" | "find" | "new" | "settings" | "workspace";
 
 export const theme = createPreference({
   values: ["dark", "light"],
@@ -87,3 +88,21 @@ export const editDraft = (id: string, text: string) =>
   }));
 export const removeDraft = (id: string) =>
   set(({ drafts }) => ({ drafts: drafts.filter((draft) => draft.id !== id) }));
+
+const loaded = Promise.race([
+  Promise.all([
+    document.fonts.load('300 36px "Fraunces"'),
+    document.fonts.load('400 14px "Hanken Grotesk"'),
+  ]),
+  new Promise((resolve) => setTimeout(resolve, 1000)),
+]);
+
+export const invite = location.pathname.match(/^\/join\/([\w-]+)/)?.[1];
+
+export function useReady() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    void loaded.then(() => setReady(true));
+  }, []);
+  return ready;
+}

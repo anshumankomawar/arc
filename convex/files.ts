@@ -31,10 +31,8 @@ export const mine = query({
   },
 });
 
-const kept = { id: v.union(v.id("files"), v.id("links")) };
-
 export const stored = query({
-  args: kept,
+  args: { id: v.union(v.id("files"), v.id("links")) },
   returns: v.id("_storage"),
   handler: async (ctx, { id }) => {
     const row = await ctx.db.get(id);

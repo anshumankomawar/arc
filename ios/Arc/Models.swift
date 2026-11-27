@@ -19,7 +19,6 @@ struct Person: Doc {
 }
 struct Place: Doc {
   let _id, name: String
-  let people: Double
 }
 struct Invitation: Doc {
   let _id, workspace, from: String
@@ -63,7 +62,6 @@ struct Row: Decodable, Identifiable {
   let threadId, title, lastAuthorId, lastBody: String
   let activeAt: Double
   var inbox, unread: Bool
-  let sent: Bool?
   var bucketId: String?
   var id: String { threadId }
 }
@@ -243,15 +241,13 @@ extension ShapeStyle where Self == Color {
 
 extension View {
   func live<T: Decodable>(
-    _ name: String, _ value: Binding<T>, with args: [String: ConvexEncodable?]? = nil,
+    _ name: String, _ value: Binding<T>, with args: [String: ConvexEncodable?] = [:],
     page: Double? = nil
   ) -> some View {
     task(id: page) {
-      let paged = page.map { ["paginationOpts": ["numItems": $0, "cursor": nil] as [String: ConvexEncodable?]] }
-      let updates = convex.subscribe(
-        to: name, with: (args ?? [:]).merging(paged ?? [:]) { $1 }, yielding: T.self
-      )
-      .catch { _ in Empty() }.values
+      var args = args
+      if let page { args["paginationOpts"] = ["numItems": page, "cursor": nil] as [String: ConvexEncodable?] }
+      let updates = convex.subscribe(to: name, with: args, yielding: T.self).catch { _ in Empty() }.values
       for await next in updates { value.wrappedValue = next }
     }
   }

@@ -81,14 +81,15 @@ export async function post(
       ...more,
     });
   };
-  for (const { storageId, name, thumb, snippet } of files) {
-    const id = thumb && (await claim(thumb.storageId, name, { hidden: true }));
-    const { width = 0, height = 0 } = thumb ?? {};
+  for (const { storageId, name, thumb, snippet } of files)
     await claim(storageId, name, {
-      thumb: id && { id, width, height },
+      thumb: thumb && {
+        id: await claim(thumb.storageId, name, { hidden: true }),
+        width: thumb.width,
+        height: thumb.height,
+      },
       snippet: snippet?.slice(0, 1500),
     });
-  }
   let text = body;
   let shown = body;
   for (const id of new Set(mentions(body, "file"))) {
@@ -141,28 +142,17 @@ async function rowOf(ctx: Ctx, row: Doc<"members">) {
 
 export type Row = Awaited<ReturnType<typeof rowOf>>;
 
-export const row_ = v.object({
-  threadId: v.id("threads"),
-  activeAt: v.number(),
-  inbox: v.boolean(),
-  unread: v.boolean(),
-  sent: v.boolean(),
-  bucketId: v.optional(v.id("buckets")),
-  title: v.string(),
-  lastAuthorId: v.id("users"),
-  lastBody: v.string(),
-});
+export const row_ = schema
+  .doc("members")
+  .pick("threadId", "activeAt", "inbox", "unread", "sent", "bucketId")
+  .extend(schema.doc("threads").pick("title", "lastAuthorId", "lastBody").fields);
 export const hit = schema.doc("messages").extend({ title: v.string() });
 const shown = schema.doc("messages").extend({
   links: v.array(
-    v.object({
-      _id: v.id("links"),
-      url: v.string(),
-      title: v.string(),
-      description: v.string(),
-      site: v.string(),
-      image: v.boolean(),
-    }),
+    schema
+      .doc("links")
+      .pick("_id", "url", "title", "description", "site")
+      .extend({ image: v.boolean() }),
   ),
   files: v.array(schema.doc("files").pick("_id", "name", "size", "thumb", "snippet")),
 });

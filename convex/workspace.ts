@@ -21,7 +21,7 @@ const membershipsOf = (ctx: QueryCtx, userId: Id<"users">) =>
     .withIndex("user", (q) => q.eq("userId", userId))
     .collect();
 
-const membersIn = async (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
+export const membersIn = async (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
   (
     await ctx.db
       .query("memberships")
@@ -41,11 +41,30 @@ const invitationsTo = (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
     .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
     .collect();
 
+export const groupsIn = (ctx: QueryCtx, workspaceId: Id<"workspaces">) =>
+  ctx.db
+    .query("groups")
+    .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+
 const invitedTo = (ctx: QueryCtx, invite: string) =>
   ctx.db
     .query("workspaces")
     .withIndex("invite", (q) => q.eq("invite", invite))
     .unique();
+
+async function invitationFor(ctx: QueryCtx, id: Id<"invitations">) {
+  const me = await signedIn(ctx);
+  const invitation = await ctx.db.get(id);
+  if (invitation?.email !== me.email.toLowerCase()) throw new ConvexError("Not found");
+  return { me, invitation };
+}
+
+async function removeOwn(ctx: MutationCtx & Ctx, id: Id<"invitations"> | Id<"groups">) {
+  if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
+    throw new ConvexError("Not found");
+  await ctx.db.delete(id);
+}
 
 async function owner(ctx: Ctx) {
   if ((await memberOf(ctx, ctx.me.workspaceId, ctx.me._id))?.role !== "owner")
@@ -185,9 +204,7 @@ export const accept = rawMutation({
   args: { id: v.id("invitations") },
   returns: v.null(),
   handler: async (ctx, { id }) => {
-    const me = await signedIn(ctx);
-    const invitation = await ctx.db.get(id);
-    if (invitation?.email !== me.email.toLowerCase()) throw new ConvexError("Not found");
+    const { me, invitation } = await invitationFor(ctx, id);
     await enter(ctx, me, invitation.workspaceId);
   },
 });
@@ -196,9 +213,7 @@ export const decline = rawMutation({
   args: { id: v.id("invitations") },
   returns: v.null(),
   handler: async (ctx, { id }) => {
-    const me = await signedIn(ctx);
-    if ((await ctx.db.get(id))?.email !== me.email.toLowerCase())
-      throw new ConvexError("Not found");
+    await invitationFor(ctx, id);
     await ctx.db.delete(id);
   },
 });
@@ -252,11 +267,7 @@ export const pending = query({
 export const revoke = mutation({
   args: { id: v.id("invitations") },
   returns: v.null(),
-  handler: async (ctx, { id }) => {
-    if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
-      throw new ConvexError("Not found");
-    await ctx.db.delete(id);
-  },
+  handler: (ctx, { id }) => removeOwn(ctx, id),
 });
 
 export const rename = mutation({
@@ -339,11 +350,7 @@ export const people = query({
 export const groups = query({
   args: {},
   returns: v.array(schema.doc("groups")),
-  handler: (ctx) =>
-    ctx.db
-      .query("groups")
-      .withIndex("workspace", (q) => q.eq("workspaceId", ctx.me.workspaceId))
-      .collect(),
+  handler: (ctx) => groupsIn(ctx, ctx.me.workspaceId),
 });
 
 export const saveGroup = mutation({
@@ -355,10 +362,7 @@ export const saveGroup = mutation({
       group.userIds.map((userId) => memberOf(ctx, workspaceId, userId)),
     );
     if (members.some((member) => !member)) throw new ConvexError("Not found");
-    const named = await ctx.db
-      .query("groups")
-      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
+    const named = await groupsIn(ctx, workspaceId);
     const lower = group.name.toLowerCase();
     if (named.some((other) => other._id !== id && other.name.toLowerCase() === lower))
       throw new ConvexError(`There's already a group called ${group.name}.`);
@@ -371,11 +375,7 @@ export const saveGroup = mutation({
 export const removeGroup = mutation({
   args: { id: v.id("groups") },
   returns: v.null(),
-  handler: async (ctx, { id }) => {
-    if ((await ctx.db.get(id))?.workspaceId !== ctx.me.workspaceId)
-      throw new ConvexError("Not found");
-    await ctx.db.delete(id);
-  },
+  handler: (ctx, { id }) => removeOwn(ctx, id),
 });
 
 export const buckets = query({

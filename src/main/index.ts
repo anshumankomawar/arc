@@ -12,10 +12,7 @@ const GROUND = { dark: "#101010", light: "#fafafa" };
 let window: BrowserWindow | undefined;
 let quitting = false;
 
-function show() {
-  if (!window) return createWindow();
-  window.show();
-}
+const show = () => (window ? window.show() : createWindow());
 
 function createWindow() {
   const created = new BrowserWindow({
@@ -139,11 +136,10 @@ void app.whenReady().then(() => {
       { role: "windowMenu" },
     ]),
   );
-  if (!app.isPackaged) app.dock?.setIcon(icon);
   if (app.isPackaged) {
     update();
     setInterval(update, 4 * 60 * 60 * 1000);
-  }
+  } else app.dock?.setIcon(icon);
   if (process.platform === "darwin")
     systemPreferences.registerDefaults({
       NSTextInsertionPointBlinkPeriodOn: 1e9,

@@ -3,8 +3,8 @@ import { Listbox, ListboxGroup, ListboxGroupLabel, ListboxItem } from "@ui-sdk/r
 import { usePreference } from "@ui-sdk/react/preferences";
 import { Icon, type IconName } from "./Icon";
 import { Face } from "./Face";
-import { useReady, Welcome } from "./SignIn";
-import { theme } from "./state";
+import { Welcome } from "./SignIn";
+import { theme, useReady } from "./state";
 
 const boxes: [string, IconName, number?, boolean?][] = [
   ["All Threads", "archive"],

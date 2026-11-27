@@ -14,8 +14,7 @@ export function List() {
   const mark = useMark();
   const move = useMove();
   const groups = sections(rows, box, buckets);
-  const listed = groups.flatMap((group) => group.rows);
-  const total = box === "drafts" ? drafts.length : listed.length;
+  const total = box === "drafts" ? drafts.length : groups.flatMap((group) => group.rows).length;
 
   const entries = ({ threadId, title, inbox, unread, bucketId }: Row): MenuEntry[] => {
     const others = buckets.filter((bucket) => bucket._id !== bucketId);

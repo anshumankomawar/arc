@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { groupToken, personToken } from "./text";
 import { begin, post } from "./threads";
+import { groupsIn, membersIn } from "./workspace";
 
 const TEAM = ["Arjun Rao", "Maya Chen", "Diego Alvarez", "Priya Nair"];
 const BACKLOG = 9;
@@ -125,15 +126,9 @@ export const step = internalMutation({
     const [from, key, bucket, text] = SCRIPT[index];
     const me = (await ctx.db.get(meId))!;
     const workspaceId = me.workspaceId!;
-    const rows = await ctx.db
-      .query("memberships")
-      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
+    const rows = await membersIn(ctx, workspaceId);
     const people = await Promise.all(rows.map(async (row) => (await ctx.db.get(row.userId))!));
-    const groups = await ctx.db
-      .query("groups")
-      .withIndex("workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
+    const groups = await groupsIn(ctx, workspaceId);
     const mention = (word: string) => {
       const person = word === "me" ? me : people.find(({ name }) => name.startsWith(word));
       const group = groups.find(({ name }) => name === word);

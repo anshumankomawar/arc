@@ -55,6 +55,14 @@ function Section(props: { title: string; hint: string; children: ReactNode }) {
   );
 }
 
+function Remove(props: { label: string; onClick: () => unknown }) {
+  return (
+    <Button className="remove" aria-label={props.label} onClick={props.onClick}>
+      <Icon name="trash" />
+    </Button>
+  );
+}
+
 function Bucket({ bucket }: { bucket?: Doc<"buckets"> }) {
   const save = useMutation(api.workspace.saveBucket);
   const remove = useRemoveBucket();
@@ -188,9 +196,8 @@ function Current() {
               </Button>
             )}
             {owner && person._id !== me._id && (
-              <Button
-                className="remove"
-                aria-label={`Remove ${person.name}`}
+              <Remove
+                label={`Remove ${person.name}`}
                 onClick={async () => {
                   const yes = await confirm({
                     title: `Remove ${person.name}?`,
@@ -199,9 +206,7 @@ function Current() {
                   });
                   if (yes) await removePerson({ userId: person._id });
                 }}
-              >
-                <Icon name="trash" />
-              </Button>
+              />
             )}
           </div>
         ))}
@@ -209,13 +214,10 @@ function Current() {
           <div key={invitation._id} className="row">
             <span className="clip">{invitation.email}</span>
             <small>Invited</small>
-            <Button
-              className="remove"
-              aria-label={`Cancel the invite to ${invitation.email}`}
-              onClick={() => void revoke({ id: invitation._id })}
-            >
-              <Icon name="trash" />
-            </Button>
+            <Remove
+              label={`Cancel the invite to ${invitation.email}`}
+              onClick={() => revoke({ id: invitation._id })}
+            />
           </div>
         ))}
       </div>
@@ -322,8 +324,9 @@ function Groups() {
   const group = drafting ? undefined : (groups.find(({ _id }) => _id === selected) ?? groups[0]);
   const members = people.filter((person) => group?.userIds.includes(person._id));
   const others = people.filter((person) => !group?.userIds.includes(person._id));
-  const setMembers = (userIds: Id<"users">[]) =>
-    group && void save({ id: group._id, name: group.name, userIds });
+  const userIds = members.map(({ _id }) => _id);
+  const setMembers = (next: Id<"users">[]) =>
+    group && void save({ id: group._id, name: group.name, userIds: next });
   const fail = (failure: unknown) =>
     void setError(failure instanceof ConvexError ? String(failure.data) : "That didn't save.");
   const open = (id: string, draft = false) => {
@@ -400,11 +403,7 @@ function Groups() {
                 action={async (form) => {
                   const name = String(form.get("name")).trim();
                   if (name && name !== group.name)
-                    await save({
-                      id: group._id,
-                      name,
-                      userIds: members.map(({ _id }) => _id),
-                    }).catch(fail);
+                    await save({ id: group._id, name, userIds }).catch(fail);
                 }}
               >
                 <Input
@@ -425,9 +424,7 @@ function Groups() {
                 onQueryChange={(next, { reason }) =>
                   setQuery(reason === "input-change" ? next : "")
                 }
-                onValueChange={(id) =>
-                  id && setMembers([...members.map(({ _id }) => _id), id as Id<"users">])
-                }
+                onValueChange={(id) => id && setMembers([...userIds, id as Id<"users">])}
                 onOpenChange={(open, details) =>
                   !open && details.reason === "item-press" && details.cancel()
                 }
@@ -458,9 +455,8 @@ function Groups() {
                   <Face id={person._id} size={20} />
                   <span className="clip">{person.name}</span>
                   <small>{person.email}</small>
-                  <Button
-                    className="remove"
-                    aria-label={`Remove ${person.name} from ${group.name}`}
+                  <Remove
+                    label={`Remove ${person.name} from ${group.name}`}
                     onClick={async () => {
                       const yes = await confirm({
                         title: `Remove ${person.name} from ${group.name}?`,
@@ -468,14 +464,9 @@ function Groups() {
                           "They stay in threads they're already in, and mentioning the group won't bring them in again.",
                         confirmLabel: "Remove",
                       });
-                      if (yes)
-                        setMembers(
-                          members.filter(({ _id }) => _id !== person._id).map(({ _id }) => _id),
-                        );
+                      if (yes) setMembers(userIds.filter((id) => id !== person._id));
                     }}
-                  >
-                    <Icon name="trash" />
-                  </Button>
+                  />
                 </div>
               ))}
               {!members.length && (

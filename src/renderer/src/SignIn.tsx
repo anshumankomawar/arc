@@ -10,20 +10,10 @@ import {
   SegmentedControlItem,
 } from "@ui-sdk/react/segmented-control";
 import { useMutation, useQuery } from "convex/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api, useInvitations } from "./data";
 import { Icon } from "./Icon";
-import { reset, setDialog, switched, useUI } from "./state";
-
-const loaded = Promise.race([
-  Promise.all([
-    document.fonts.load('300 36px "Fraunces"'),
-    document.fonts.load('400 14px "Hanken Grotesk"'),
-  ]),
-  new Promise((resolve) => setTimeout(resolve, 1000)),
-]);
-
-export const invite = location.pathname.match(/^\/join\/([\w-]+)/)?.[1];
+import { invite, reset, setDialog, switched, useReady, useUI } from "./state";
 
 function useLoopback() {
   const { setSession } = useAuthActions();
@@ -37,19 +27,8 @@ function useLoopback() {
     await setSession(result.tokens);
   };
 }
-function useRedirect() {
-  const { signIn } = useSignInWithGoogle(api.auth);
-  return () => signIn();
-}
+const useRedirect = () => useSignInWithGoogle(api.auth).signIn;
 const useGoogle = window.desktop ? useLoopback : useRedirect;
-
-export function useReady() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    void loaded.then(() => setReady(true));
-  }, []);
-  return ready;
-}
 
 export function Welcome({ workspace }: { workspace?: string | null }) {
   const google = useGoogle();
