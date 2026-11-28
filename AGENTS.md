@@ -68,6 +68,64 @@ smaller values. Size a new rule with the variables; never add a compact-only ove
   is in the thread it came from.
 - After adding or removing a dependency, restart `bun run dev`: a running dev server keeps its old bundle of them.
 
+## How to work here
+
+What the owner asks for again and again in reviews. Treat a request for a cleanup or an audit as all of it.
+
+Code
+
+- No code debt. Before you finish, reread your whole diff and take out what isn't needed: dead logic, unused exports,
+  styles and variables, comments, extra layers, and anything kept for old data or old versions.
+- One source of truth. Look for what exists before you write something, and share it instead of copying it. Settings
+  come from `choices` in `state.ts`, and commands, shortcuts and their hints from `commands.ts`; add to those lists
+  rather than beside them. The desktop app and the website are one interface; the only fork is `window.desktop`, for
+  what only the desktop can do.
+- Use the same technology everywhere unless there's a specific reason, and say what it is.
+- Name things plainly for what they are (tables, functions, classes), so a reader knows what something holds from its
+  name.
+- Migrations are temporary: run them, then delete them. Wiping or backfilling dev data is fine; never leave a
+  compatibility layer behind.
+- Look up what you don't know (the docs in `node_modules`, the types, a small test, the web) instead of guessing.
+- Use the right tool or don't do it: nothing faked or approximated, like noise standing in for a texture.
+- Keep data confined: nothing crosses workspaces, and inside one a person reaches only the threads they're in. Don't
+  add a permission model nobody asked for.
+- For Convex, follow its skills (`.claude/skills/convex-*`, such as optimize and launch-readiness) and its guidelines.
+  Every client query goes through `convex-helpers/react/cache`. When speed is the question, measure how often queries
+  re-run and how long views take to switch; don't guess.
+
+Interface
+
+- Consistent everywhere: edges, icons and text line up across columns, lists, menus and dialogs, with equal spacing on
+  every side. Fix an inconsistency at its source (a variable, a shared component), never with a one-off override.
+- Every rule works in both layouts, comfortable and compact, through the size variables.
+- Buttons, rows and cards don't change color on hover.
+- Where Arc doesn't handle something, keep the platform's own behavior: the native right-click menu, native drag and
+  drop, Quick Look.
+- The website uses the desktop's ⌘ shortcuts, as Notion does. One a browser keeps for itself works only on the desktop,
+  with a visible button instead; no single-letter stand-ins.
+- Quiet secondary detail: shadows, dividers and badges stay light, and bold text uses one medium weight.
+- Prefer acting in place (the delete button that turns into its own confirmation) to a centered dialog. Where an
+  established app has settled a pattern (Slack for messages and files, Notion for keys), follow it.
+- Nothing shifts or flickers as a view loads, and nothing appears after the rest.
+- Words people read are short and plain: "Arc" everywhere, "Layout" rather than "density", and commands worded as
+  the existing ones are ("Switch to the dark theme"), searchable by the words people actually type.
+
+Checking
+
+- Fix things in code, then confirm them in the running app: screenshots of every view you touched, light and dark,
+  both layouts, and measurements where alignment matters. Find every instance of a problem, not just the one reported.
+- Keep the app working at every step; a broken intermediate edit shows up as a blank window.
+- Report what you checked and what you didn't. A typecheck isn't a check of the interface.
+
+Working together
+
+- When the task is clear, plan it and do all of it without asking. Ask only about decisions that are the owner's.
+- Commit, push and deploy only when asked, and confirm each action on production. Before pushing, squash the churn into
+  a few commits, each a plain sentence of what changed ("An attachment's icon shows what kind of file it is").
+- More than one agent may work in this tree at once: commit only your own changes, and tell the other agent before you
+  edit a file it's in.
+- Answers are short and concrete.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.
