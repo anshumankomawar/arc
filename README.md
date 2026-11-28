@@ -1,41 +1,51 @@
 # Arc
 
-Threads, as a desktop app: Electron, React and Convex.
+Team messaging in threads: a Mac app, the same app as a website at arcteams.chat, and an iPhone app, all on one
+Convex backend.
 
-## Run it
+## Get started
+
+You need a Mac, [Bun](https://bun.sh) and a [Convex](https://convex.dev) account. Ask to be added to the Convex team
+that owns Arc if you'll deploy the shared backend, and to the Cloudflare account if you'll publish the website.
 
 ```sh
 bun install
-bun run convex   # the backend, watching convex/
-bun run dev      # the app
+bun run convex   # the backend: signs you in to Convex, creates your own dev deployment, writes .env.local, watches convex/
+bun run dev      # the desktop app, against that dev deployment
 ```
 
-The first `bun run convex` creates a deployment and writes `.env.local`. Convex Auth signs its sessions with the
-deployment's own key. Signing in with Google needs a Google Cloud OAuth client (Web application) whose redirect URI is
-the deployment's site URL (`VITE_CONVEX_SITE_URL` in `.env.local`) followed by `/oauth/google/callback`, and its id and
-secret on the deployment; the deployment won't start without them:
+Your dev deployment needs a few settings before you can sign in. Run these once, in another terminal while
+`bun run convex` is running:
 
 ```sh
+bunx convex env set SITE_URL http://localhost:5173   # where invite links point, and where Google may return to
 bunx convex env set AUTH_GOOGLE_CLIENT_ID ...
 bunx convex env set AUTH_GOOGLE_CLIENT_SECRET ...
 ```
 
-To have new threads sorted into buckets (without it they never reach Buckets, only All Threads):
+The Google id and secret come from a Google Cloud OAuth client (Web application) whose redirect URI is your deployment's
+site URL (`VITE_CONVEX_SITE_URL` in `.env.local`) followed by `/oauth/google/callback`. Convex Auth signs its sessions
+with the deployment's own key, so nothing else is needed to sign in.
+
+Two keys are optional. Without `ANTHROPIC_API_KEY`, new threads are never sorted into buckets (they show only in All
+Threads) and Search can't ask a model which threads a question is about (Ask Arc). Without `VOYAGE_API_KEY`, Search
+finds messages by their words only, not by meaning:
 
 ```sh
 bunx convex env set ANTHROPIC_API_KEY ...
-```
-
-The same key lets Search ask a model for the threads a question is about (Ask Arc). To have Search also find messages by
-meaning, give it a Voyage key; each new message is then embedded as it's posted:
-
-```sh
 bunx convex env set VOYAGE_API_KEY ...
 ```
 
 People sign in with Google. A new account has no workspace: it creates one, or joins one through the invite link
-a member copied from Settings. Google returns the app its sign-in through `http://127.0.0.1:47201`, which the app
-listens on only while you sign in.
+a member copied from Settings. Google returns the desktop app its sign-in through `http://127.0.0.1:47201`, which the
+app listens on only while you sign in.
+
+To try the app with a team that talks back, sign in, create a workspace, then fill it with four simulated teammates who
+post into threads every 20 seconds:
+
+```sh
+bunx convex run simulate:start '{"email":"you@example.com"}'
+```
 
 ## The website
 
@@ -46,8 +56,7 @@ question about where it runs, whether `window.desktop` exists. Only the desktop 
 system browser, the native theme and Quick Look.
 
 ```sh
-bun run web                                         # http://localhost:5173
-bunx convex env set SITE_URL http://localhost:5173  # once: where invite links point, and where Google may return to
+bun run web   # http://localhost:5173, against your dev deployment
 ```
 
 `bun run deploy:web` builds the site against the shared deployment and publishes it to Cloudflare with the `cf` CLI
@@ -62,8 +71,16 @@ desktop.
 
 ## The shared deployment
 
-`bun run dev` talks to your own dev deployment, where you can break things. The built app talks to the one everyone
-shares (`.env.production`), so that is where real conversations live:
+`bun run dev` talks to your own dev deployment, where you can break things. The built app and the website talk to the
+one everyone shares, so that is where real conversations live. Its addresses go in `.env.production` (gitignored),
+which you create once:
+
+```sh
+VITE_CONVEX_URL=https://uncommon-ibis-769.convex.cloud
+VITE_CONVEX_SITE_URL=https://uncommon-ibis-769.convex.site
+```
+
+Then:
 
 ```sh
 bun run build && bunx electron-vite preview   # the app, on the shared deployment
@@ -110,8 +127,9 @@ themselves.
 ## Check it
 
 ```sh
-bun run test     # the delivery rules, against an in-memory Convex
+bun run test     # the backend's rules (delivery, access, files, links), against an in-memory Convex
 bun run build    # types, then the app
+bun run format   # Prettier, which every file follows
 ```
 
 ## Where things are
@@ -121,5 +139,8 @@ bun run build    # types, then the app
   storage, and downloaded only through the `/file` route in `http.ts`, which checks the caller is in the thread and lets
   the browser cache the bytes) and `links.ts` (a link in a
   message is fetched once, from Convex, for its title, description and image).
-- `src/main` is the Electron window. `src/renderer` is the interface, for the desktop and the website alike, built from
-  ui-sdk components (see `AGENTS.md`).
+- `src/main` is the Electron window and `src/preload` the few things it lends the page (`window.desktop`).
+  `src/renderer` is the interface, for the desktop and the website alike, built from ui-sdk components (see
+  `AGENTS.md`). `commands.ts` is every command, with its keys; the palette, the shortcuts and their hints all read it.
+  `state.ts` holds the settings and where you are; `data.ts` the queries, mutations and their optimistic updates.
+- `tests/` runs the backend against an in-memory Convex. `ios/` is the iPhone app.

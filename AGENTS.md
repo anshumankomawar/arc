@@ -1,6 +1,7 @@
 # Arc
 
-A desktop app for threads: Electron, React 19 and Convex. `README.md` has how to run and check it.
+Team messaging in threads: an Electron desktop app and the same interface as a website, React 19 on Convex, plus a
+SwiftUI app in `ios/`. `README.md` has how to set it up, run it, check it and ship it.
 
 ## Before you change the interface
 
@@ -16,24 +17,27 @@ The interface is built from ui-sdk (`@ui-sdk/react`, with `@ui-sdk/core` under i
 
 What's already in use, and where:
 
-| For                                     | Component                                         | In                                       |
-| --------------------------------------- | ------------------------------------------------- | ---------------------------------------- |
-| Reply and New Message, with @mentions   | Token Input, Trigger Menu, File Input             | `MessageBox.tsx`                         |
-| Mailboxes and the thread list           | Listbox                                           | `Sidebar.tsx`, `List.tsx`, `Landing.tsx` |
-| ⌘K, ⌘F and New Message                  | Command, Dialog                                   | `Palette.tsx`                            |
-| Right-click menus, the workspace picker | Menu                                              | `Menu.tsx`, `Sidebar.tsx`                |
-| People in a group                       | Combobox                                          | `Settings.tsx`                           |
-| A person's picture                      | Avatar                                            | `Face.tsx`                               |
-| Columns                                 | Resizable                                         | `App.tsx`                                |
-| Keys                                    | `useShortcut`                                     | `App.tsx`, `Thread.tsx`                  |
-| Theme, and whether previews show        | `createPreference`                                | `state.ts`                               |
-| Settings popup                          | Dialog, Tabs                                      | `Settings.tsx`                           |
-| Confirming a delete                     | `confirm`, Overlay Host                           | `data.ts`, `App.tsx`                     |
-| Settings and the first-run screens      | Input, Textarea, Segmented Control, Field, Button | `Settings.tsx`, `SignIn.tsx`             |
-| Adding a workspace                      | Dialog                                            | `SignIn.tsx`                             |
+| For                                         | Component                                         | In                                       |
+| ------------------------------------------- | ------------------------------------------------- | ---------------------------------------- |
+| Reply and New Message, with @mentions       | Token Input, Trigger Menu, File Input             | `MessageBox.tsx`                         |
+| Mailboxes and the thread list               | Listbox                                           | `Sidebar.tsx`, `List.tsx`, `Landing.tsx` |
+| ⌘K, ⌘F and New Message                      | Command, Dialog                                   | `Palette.tsx`                            |
+| Every command and its keys                  | `registerShortcut`, `useShortcut`                 | `commands.ts`                            |
+| Right-click menus, the workspace picker     | Menu                                              | `Menu.tsx`, `Sidebar.tsx`                |
+| A message's hover toolbar, reactions, image | Toolbar, Menu, Dialog                             | `Thread.tsx`                             |
+| People in a group                           | Combobox                                          | `Settings.tsx`                           |
+| A person's picture                          | Avatar                                            | `Face.tsx`                               |
+| Columns                                     | Resizable                                         | `App.tsx`                                |
+| Theme, layout, previews and the send key    | `createPreference`                                | `state.ts` (`choices`)                   |
+| Settings popup                              | Dialog, Tabs                                      | `Settings.tsx`                           |
+| Confirming a delete                         | `confirm`, Overlay Host                           | `data.ts`, `App.tsx`                     |
+| Settings and the first-run screens          | Input, Textarea, Segmented Control, Field, Button | `Settings.tsx`, `SignIn.tsx`             |
+| Adding a workspace                          | Dialog                                            | `SignIn.tsx`                             |
 
 Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's `data-slot` and state attributes
-(`data-selected`, `data-highlighted`, `data-open`).
+(`data-selected`, `data-highlighted`, `data-open`). Every size (text, row and control heights, padding, gaps, radii)
+reads a variable set on `:root`, and the compact layout (`:root[data-density="compact"]`) only gives those variables
+smaller values. Size a new rule with the variables; never add a compact-only override for one element.
 
 ## Rules
 
@@ -45,7 +49,16 @@ Styles are plain CSS in `src/renderer/src/app.css`, on class names and ui-sdk's 
   `_generated/server`: they sign the caller in and give you `ctx.me`. Read and write only inside `ctx.me.workspaceId`,
   and reach a thread through `membership`. The only exceptions are the ones in `convex/workspace.ts` that someone
   with no workspace open must reach (`me`, `workspaces`, `invitations`, `invited`, `create`, `join`, `accept`,
-  `decline`, `open`, `leave`); they call `signedIn` themselves.
+  `decline`, `open`, `leave`); they call `signedIn` themselves, except `invited`, which names a workspace from its
+  invite link before anyone signs in.
+- A thread's access check (`membership`) reads `thread_members`, which only changes when someone joins the thread.
+  Per-person state that changes on every message (`activeAt`, `unread`, `seenAt`, the bucket) lives in
+  `inbox_entries`, read through `stateOf`. Keep them apart so a new message doesn't re-run every open thread for
+  everyone.
+- Tables are named for what they hold: `workspace_members` (who is in a workspace, and their role), `open_workspaces`
+  (which one each person has open), `workspace_invitations`, `mention_groups`, `thread_members` (who is in a thread),
+  `inbox_entries` (one person's state for one thread), `inbox_buckets`, `messages` (with their reactions and how many
+  attachments they have), `attachments`, `link_previews` and `message_embeddings`.
 - An action has no `ctx.me`: it reaches data only through those queries and mutations (`convex/search.ts`).
 - A message's delivery lives in `post` in `convex/threads.ts`. Change it with its tests, in `tests/`.
 - A file's bytes leave storage only through the `/file` route in `convex/http.ts`, which checks membership (`stored`
