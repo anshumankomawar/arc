@@ -1,4 +1,4 @@
-import { createLocalStorage, createPreference } from "@ui-sdk/core";
+import { createLocalStorage, createPreference, type Preference } from "@ui-sdk/core";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -32,6 +32,43 @@ export const sending = createPreference({
   global: true,
   storage: createLocalStorage("sending"),
 });
+
+export const density = createPreference({
+  values: ["comfortable", "compact"],
+  defaultValue: "comfortable",
+  attribute: "data-density",
+  global: true,
+  storage: createLocalStorage("density"),
+});
+
+const choice = <Value extends string>(
+  label: string,
+  preference: Preference<Value>,
+  options: Record<Value, [name: string, command: string, words?: string]>,
+) => ({
+  label,
+  preference: preference as unknown as Preference,
+  options: options as Record<string, [name: string, command: string, words?: string]>,
+});
+
+export const choices = [
+  choice("Theme", theme, {
+    dark: ["Dark", "Switch to the dark theme"],
+    light: ["Light", "Switch to the light theme"],
+  }),
+  choice("Layout", density, {
+    comfortable: ["Comfortable", "Switch to the comfortable layout", "spacing roomy"],
+    compact: ["Compact", "Switch to the compact layout", "spacing dense small"],
+  }),
+  choice("Previews of images and links", previews, {
+    on: ["On", "Show previews of images and links"],
+    off: ["Off", "Hide previews of images and links"],
+  }),
+  choice("Send a message with", sending, {
+    enter: ["↵", "Send messages with ↵", "enter return"],
+    "mod+enter": ["⌘↵", "Send messages with ⌘↵", "command enter cmd return"],
+  }),
+];
 
 type UI = {
   history: View[];

@@ -25,8 +25,14 @@ export function parts(body: string): Part[] {
 export const mentions = (body: string, kind: Kind) =>
   parts(body).flatMap((part) => (typeof part !== "string" && part.kind === kind ? [part.id] : []));
 
+const unmark = (text: string) =>
+  text
+    .replace(/^```.*$/gm, "")
+    .replace(/^> ?/gm, "")
+    .replace(/\*\*|~~|`/g, "");
+
 export const plain = (body: string, name: (kind: Kind, id: string) => string) =>
-  parts(body)
+  parts(unmark(body))
     .map((part) =>
       typeof part === "string"
         ? part
@@ -35,4 +41,5 @@ export const plain = (body: string, name: (kind: Kind, id: string) => string) =>
     .join("");
 
 export const titleOf = (body: string) =>
-  body.replace(TOKEN, "").trim().split("\n")[0].replace(/\s+/g, " ").slice(0, 80) || "New thread";
+  unmark(body.replace(TOKEN, "")).trim().split("\n")[0].replace(/\s+/g, " ").slice(0, 80) ||
+  "New thread";

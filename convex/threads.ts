@@ -25,8 +25,11 @@ export async function post(
   threadId: Id<"threads">,
   body: string,
   files: Attached = [],
+  replyTo?: Id<"messages">,
 ) {
   const { _id: authorId, workspaceId } = ctx.me;
+  if (replyTo && (await ctx.db.get(replyTo))?.threadId !== threadId)
+    throw new ConvexError("Not found");
   const activeAt = Date.now();
 
   const colleague = async (id: string) => {
@@ -56,7 +59,13 @@ export async function post(
   ]);
   if (everyone.size < 2) throw new ConvexError("Nobody to send it to");
 
-  const messageId = await ctx.db.insert("messages", { workspaceId, threadId, authorId, body });
+  const messageId = await ctx.db.insert("messages", {
+    workspaceId,
+    threadId,
+    authorId,
+    body,
+    replyTo,
+  });
   await ctx.scheduler.runAfter(0, internal.search.index, { messageId });
   if (urlsIn(body).length) await ctx.scheduler.runAfter(0, internal.links.unfurl, { messageId });
   const claim = async (
@@ -121,7 +130,7 @@ export async function post(
         sent: userId === authorId,
       }));
     if (userId === authorId) {
-      await ctx.db.patch(memberId, { activeAt, unread: false });
+      await ctx.db.patch(memberId, { activeAt, unread: false, seenAt: activeAt });
       continue;
     }
     await ctx.db.patch(memberId, { activeAt, inbox: true, unread: true });
@@ -165,7 +174,7 @@ async function own(ctx: MutationCtx & Ctx, messageId: Id<"messages">) {
 export async function drop(
   ctx: MutationCtx,
   messageId: Id<"messages">,
-  table: "links" | "vectors" | "files",
+  table: "links" | "vectors" | "files" | "reactions",
 ) {
   const rows = await ctx.db
     .query(table)
@@ -185,19 +194,31 @@ export async function drop(
 }
 
 async function rowOf(ctx: Ctx, row: Doc<"members">) {
-  const { threadId, activeAt, inbox, unread, sent, bucketId } = row;
+  const { threadId, activeAt, inbox, unread, sent, seenAt, bucketId } = row;
   const { title, lastAuthorId, lastBody } = (await ctx.db.get(threadId))!;
-  return { threadId, activeAt, inbox, unread, sent, bucketId, title, lastAuthorId, lastBody };
+  return {
+    threadId,
+    activeAt,
+    inbox,
+    unread,
+    sent,
+    seenAt,
+    bucketId,
+    title,
+    lastAuthorId,
+    lastBody,
+  };
 }
 
 export type Row = Awaited<ReturnType<typeof rowOf>>;
 
 export const row_ = schema
   .doc("members")
-  .pick("threadId", "activeAt", "inbox", "unread", "sent", "bucketId")
+  .pick("threadId", "activeAt", "inbox", "unread", "sent", "seenAt", "bucketId")
   .extend(schema.doc("threads").pick("title", "lastAuthorId", "lastBody").fields);
 export const hit = schema.doc("messages").extend({ title: v.string() });
 const shown = schema.doc("messages").extend({
+  quoted: v.union(v.null(), schema.doc("messages").pick("_id", "authorId", "body")),
   links: v.array(
     schema
       .doc("links")
@@ -205,6 +226,7 @@ const shown = schema.doc("messages").extend({
       .extend({ image: v.boolean() }),
   ),
   files: v.array(schema.doc("files").pick("_id", "name", "size", "thumb", "snippet")),
+  reactions: v.array(v.object({ emoji: v.string(), userIds: v.array(v.id("users")) })),
 });
 
 export const inbox = query({
@@ -283,8 +305,19 @@ export const messages = query({
           .query("links")
           .withIndex("message", (q) => q.eq("messageId", message._id))
           .take(3);
+        const reacted = await ctx.db
+          .query("reactions")
+          .withIndex("message", (q) => q.eq("messageId", message._id))
+          .take(500);
+        const reactions = new Map<string, Id<"users">[]>();
+        for (const { emoji, userId } of reacted)
+          reactions.set(emoji, [...(reactions.get(emoji) ?? []), userId]);
+        const parent = message.replyTo && (await ctx.db.get(message.replyTo));
         return {
           ...message,
+          quoted: parent
+            ? { _id: parent._id, authorId: parent.authorId, body: parent.body.slice(0, 300) }
+            : null,
           links: links.map(({ _id, url, title, description, site, storageId }) => ({
             _id,
             url,
@@ -296,6 +329,7 @@ export const messages = query({
           files: files
             .filter((file) => !file.hidden)
             .map(({ _id, name, size, thumb, snippet }) => ({ _id, name, size, thumb, snippet })),
+          reactions: [...reactions].map(([emoji, userIds]) => ({ emoji, userIds })),
         };
       }),
     );
@@ -339,11 +373,16 @@ export const start = mutation({
 });
 
 export const send = mutation({
-  args: { threadId: v.id("threads"), body: v.string(), files: v.optional(attached) },
+  args: {
+    threadId: v.id("threads"),
+    body: v.string(),
+    files: v.optional(attached),
+    replyTo: v.optional(v.id("messages")),
+  },
   returns: v.null(),
-  handler: async (ctx, { threadId, body, files }) => {
+  handler: async (ctx, { threadId, body, files, replyTo }) => {
     await membership(ctx, threadId);
-    await post(ctx, threadId, body, files);
+    await post(ctx, threadId, body, files, replyTo);
   },
 });
 
@@ -356,7 +395,7 @@ export const mark = mutation({
   returns: v.null(),
   handler: async (ctx, { threadId, ...state }) => {
     const row = await membership(ctx, threadId);
-    await ctx.db.patch(row._id, state);
+    await ctx.db.patch(row._id, state.unread === false ? { ...state, seenAt: Date.now() } : state);
   },
 });
 
@@ -401,8 +440,30 @@ export const remove = mutation({
     const { threadId } = await own(ctx, messageId);
     if ((await inThread(ctx, threadId).take(2)).length < 2)
       throw new ConvexError("A thread keeps its last message");
-    for (const table of ["links", "vectors", "files"] as const) await drop(ctx, messageId, table);
+    for (const table of ["links", "vectors", "files", "reactions"] as const)
+      await drop(ctx, messageId, table);
     await ctx.db.delete(messageId);
     await retell(ctx, threadId);
+  },
+});
+
+export const react = mutation({
+  args: { messageId: v.id("messages"), emoji: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { messageId, emoji }) => {
+    const message = await ctx.db.get(messageId);
+    if (message?.workspaceId !== ctx.me.workspaceId) throw new ConvexError("Not found");
+    const { threadId, workspaceId } = message;
+    await membership(ctx, threadId);
+    if (!emoji || emoji.length > 16) throw new ConvexError("Not an emoji");
+    const userId = ctx.me._id;
+    const mine = await ctx.db
+      .query("reactions")
+      .withIndex("message", (q) =>
+        q.eq("messageId", messageId).eq("emoji", emoji).eq("userId", userId),
+      )
+      .unique();
+    if (mine) await ctx.db.delete(mine._id);
+    else await ctx.db.insert("reactions", { workspaceId, threadId, messageId, userId, emoji });
   },
 });

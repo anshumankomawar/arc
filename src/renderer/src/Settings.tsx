@@ -27,7 +27,9 @@ import {
   api,
   useBuckets,
   useCopyInvite,
+  useDeleteWorkspace,
   useGroups,
+  useLeaveWorkspace,
   useMe,
   usePending,
   usePeople,
@@ -39,7 +41,7 @@ import {
 } from "./data";
 import { Icon } from "./Icon";
 import { Face } from "./Face";
-import { previews, reset, sending, setDialog, switched, theme, useUI } from "./state";
+import { choices, reset, setDialog, switched, useUI } from "./state";
 
 const saveOnLeave = (event: FocusEvent<HTMLFormElement>) => {
   if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.requestSubmit();
@@ -52,6 +54,27 @@ function Section(props: { title: string; hint: string; children: ReactNode }) {
       <p>{props.hint}</p>
       {props.children}
     </TabsPanel>
+  );
+}
+
+function Choice(props: (typeof choices)[number]) {
+  const { value } = usePreference(props.preference);
+  return (
+    <div className="row">
+      <span className="clip">{props.label}</span>
+      <SegmentedControl
+        aria-label={props.label}
+        value={value}
+        onValueChange={(next) => next && props.preference.set(next)}
+      >
+        <SegmentedControlIndicator />
+        {Object.entries(props.options).map(([option, [label]]) => (
+          <SegmentedControlItem key={option} value={option}>
+            {label}
+          </SegmentedControlItem>
+        ))}
+      </SegmentedControl>
+    </div>
   );
 }
 
@@ -113,8 +136,8 @@ function Current() {
   const revoke = useMutation(api.workspace.revoke);
   const rename = useMutation(api.workspace.rename);
   const removePerson = useMutation(api.workspace.removePerson);
-  const leave = useMutation(api.workspace.leave);
-  const removeWorkspace = useMutation(api.workspace.removeWorkspace);
+  const leave = useLeaveWorkspace();
+  const removeWorkspace = useDeleteWorkspace();
   const [copied, setCopied] = useState("");
   const [already, setAlready] = useState<string[]>([]);
   const timer = useRef(0);
@@ -222,31 +245,11 @@ function Current() {
         ))}
       </div>
       <footer>
-        <Button
-          className="text"
-          onClick={async () => {
-            const yes = await confirm({
-              title: `Leave ${me.workspace}?`,
-              description: "You can come back with an invite.",
-              confirmLabel: "Leave",
-            });
-            if (yes) await leave({ id: me.workspaceId! }).then(() => switched("settings"));
-          }}
-        >
+        <Button className="text" onClick={() => void leave()}>
           Leave Workspace
         </Button>
         {owner && (
-          <Button
-            className="text danger"
-            onClick={async () => {
-              const yes = await confirm({
-                title: `Delete ${me.workspace}?`,
-                description: "Its threads, messages and files are deleted for everyone.",
-                confirmLabel: "Delete",
-              });
-              if (yes) await removeWorkspace().then(() => switched("settings"));
-            }}
-          >
+          <Button className="text danger" onClick={() => void removeWorkspace()}>
             Delete Workspace
           </Button>
         )}
@@ -500,9 +503,6 @@ function Groups() {
 export function Settings() {
   const me = useMe()!;
   const buckets = useBuckets();
-  const { value } = usePreference(theme);
-  const shown = usePreference(previews).value;
-  const send = usePreference(sending).value;
   const { signOut } = useAuthActions();
 
   return (
@@ -533,42 +533,9 @@ export function Settings() {
             title="Appearance"
             hint={`How Arc looks and works ${window.desktop ? "on this Mac" : "in this browser"}.`}
           >
-            <div className="row">
-              <span className="clip">Theme</span>
-              <SegmentedControl
-                aria-label="Theme"
-                value={value}
-                onValueChange={(next) => next && theme.set(next as typeof value)}
-              >
-                <SegmentedControlIndicator />
-                <SegmentedControlItem value="dark">Dark</SegmentedControlItem>
-                <SegmentedControlItem value="light">Light</SegmentedControlItem>
-              </SegmentedControl>
-            </div>
-            <div className="row">
-              <span className="clip">Previews of images and links</span>
-              <SegmentedControl
-                aria-label="Previews of images and links"
-                value={shown}
-                onValueChange={(next) => next && previews.set(next as typeof shown)}
-              >
-                <SegmentedControlIndicator />
-                <SegmentedControlItem value="on">On</SegmentedControlItem>
-                <SegmentedControlItem value="off">Off</SegmentedControlItem>
-              </SegmentedControl>
-            </div>
-            <div className="row">
-              <span className="clip">Send a message with</span>
-              <SegmentedControl
-                aria-label="Send a message with"
-                value={send}
-                onValueChange={(next) => next && sending.set(next as typeof send)}
-              >
-                <SegmentedControlIndicator />
-                <SegmentedControlItem value="enter">↵</SegmentedControlItem>
-                <SegmentedControlItem value="mod+enter">⌘↵</SegmentedControlItem>
-              </SegmentedControl>
-            </div>
+            {choices.map((choice) => (
+              <Choice key={choice.label} {...choice} />
+            ))}
           </Section>
 
           <Section

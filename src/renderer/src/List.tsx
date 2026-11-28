@@ -5,7 +5,8 @@ import { ContextMenu, type MenuEntry } from "./Menu";
 import { go, removeDraft, useUI, useView } from "./state";
 import { stamp } from "./time";
 
-export function List({ rows, more }: { rows: Row[]; more?: () => void }) {
+export function List(props: { rows: Row[]; more?: () => void; loading: boolean }) {
+  const { rows, more } = props;
   const { box, thread, draft: open } = useView();
   const buckets = useBuckets();
   const drafts = useUI((ui) => ui.drafts);
@@ -105,7 +106,7 @@ export function List({ rows, more }: { rows: Row[]; more?: () => void }) {
           )}
         </Listbox>
       )}
-      {total === 0 && (
+      {total === 0 && !props.loading && (
         <div className="empty">
           <Icon name="inbox" size={28} />
           <b>{box === "inbox" ? "All caught up" : "Nothing here"}</b>

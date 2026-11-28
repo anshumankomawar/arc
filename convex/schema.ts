@@ -49,6 +49,7 @@ export default defineSchema({
     threadId: v.id("threads"),
     authorId: v.id("users"),
     body: v.string(),
+    replyTo: v.optional(v.id("messages")),
     editedAt: v.optional(v.number()),
   })
     .index("thread", ["threadId"])
@@ -105,6 +106,7 @@ export default defineSchema({
     inbox: v.boolean(),
     unread: v.boolean(),
     sent: v.boolean(),
+    seenAt: v.optional(v.number()),
     bucketId: v.optional(v.id("buckets")),
   })
     .index("user", ["userId", "workspaceId", "activeAt"])
@@ -112,6 +114,16 @@ export default defineSchema({
     .index("sent", ["userId", "workspaceId", "sent", "activeAt"])
     .index("bucket", ["bucketId"])
     .index("thread", ["threadId", "userId"]),
+
+  reactions: defineTable({
+    workspaceId: v.id("workspaces"),
+    threadId: v.id("threads"),
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    emoji: v.string(),
+  })
+    .index("thread", ["threadId"])
+    .index("message", ["messageId", "emoji", "userId"]),
 
   buckets: defineTable({
     userId: v.id("users"),

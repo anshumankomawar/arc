@@ -53,16 +53,31 @@ const KINDS: [IconName, string][] = [
   ["zip", "zip gz tar rar 7z dmg"],
   ["code", "js jsx ts tsx json html css py go rs sh yml yaml swift"],
 ];
-const kindOf = (name: string) => {
-  const extension = name.split(".").pop()!.toLowerCase();
-  return KINDS.find(([, extensions]) => extensions.split(" ").includes(extension))?.[0] ?? "attach";
+const TYPES: Record<string, string> = {
+  pdf: "PDF",
+  txt: "Plain Text",
+  md: "Markdown",
+  doc: "Word Document",
+  docx: "Word Document",
+  xls: "Excel Spreadsheet",
+  xlsx: "Excel Spreadsheet",
+  pages: "Pages Document",
+  numbers: "Numbers Spreadsheet",
+  zip: "Zip Archive",
 };
+const extensionOf = (name: string) =>
+  name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+export const kindOf = (name: string) =>
+  KINDS.find(([, extensions]) => extensions.split(" ").includes(extensionOf(name)))?.[0] ??
+  "attach";
+export const typeOf = (name: string) =>
+  TYPES[extensionOf(name)] ?? (extensionOf(name).toUpperCase() || "File");
 const KindIcon = ({ name, size }: { name: string; size?: number }) => {
   const kind = kindOf(name);
   return <Icon name={kind} size={size} color={`var(--${kind})`} />;
 };
 
-export const FileLabel = ({ name, size }: { name: string; size: number }) => (
+const FileLabel = ({ name, size }: { name: string; size: number }) => (
   <>
     <KindIcon name={name} size={13} />
     <span className="clip">{name}</span>

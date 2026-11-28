@@ -116,6 +116,10 @@ ipcMain.on("theme", (_event, theme: "dark" | "light") => {
   app.dock?.setIcon(theme === "dark" ? icon : lightIcon);
 });
 
+ipcMain.on("compact", (_event, compact: boolean) =>
+  window?.setWindowButtonPosition({ x: 13, y: compact ? 9 : 12 }),
+);
+
 app.on("before-quit", () => {
   quitting = true;
   clearPreviews();

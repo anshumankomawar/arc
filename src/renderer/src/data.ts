@@ -1,19 +1,14 @@
 import { useAuthToken } from "@convex-dev/auth/react";
 import { confirm } from "@ui-sdk/react/alert-dialog";
-import {
-  insertAtTop,
-  optimisticallyUpdateValueInPaginatedQuery,
-  useMutation,
-  usePaginatedQuery,
-} from "convex/react";
+import { insertAtTop, optimisticallyUpdateValueInPaginatedQuery, useMutation } from "convex/react";
 import type { OptimisticLocalStore } from "convex/browser";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
-import { useQuery } from "convex-helpers/react/cache";
+import { usePaginatedQuery, useQuery } from "convex-helpers/react/cache";
 import { useMemo } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { plain } from "../../../convex/text";
-import type { Box } from "./state";
+import { switched, type Box } from "./state";
 
 export { api };
 export { FILE_LIMIT, LINK, mentions, parts } from "../../../convex/text";
@@ -60,6 +55,31 @@ async function thumbnail(file: File) {
   canvas.getContext("2d")!.drawImage(small, 0, 0);
   small.close();
   return { blob: await canvas.convertToBlob({ type: "image/webp", quality: 0.9 }), size };
+}
+export function useLeaveWorkspace() {
+  const me = useMe();
+  const leave = useMutation(api.workspace.leave);
+  return async () => {
+    const yes = await confirm({
+      title: `Leave ${me?.workspace}?`,
+      description: "You can come back with an invite.",
+      confirmLabel: "Leave",
+    });
+    if (yes && me?.workspaceId)
+      await leave({ id: me.workspaceId }).then(() => switched("settings"));
+  };
+}
+export function useDeleteWorkspace() {
+  const me = useMe();
+  const remove = useMutation(api.workspace.removeWorkspace);
+  return async () => {
+    const yes = await confirm({
+      title: `Delete ${me?.workspace}?`,
+      description: "Its threads, messages and files are deleted for everyone.",
+      confirmLabel: "Delete",
+    });
+    if (yes) await remove().then(() => switched("settings"));
+  };
 }
 export function useUpload() {
   const uploadUrl = useMutation(api.files.uploadUrl);
@@ -134,7 +154,7 @@ export const inBox = (rows: Row[], box: Box) =>
   rows.filter((row) => (box === "inbox" ? row.bucketId : row.bucketId === box));
 
 export function useRows(box: Box) {
-  const inbox = useInbox();
+  const inbox = useQuery(api.threads.inbox);
   const paged = box === "all" || box === "sent";
   const { results, status, loadMore } = usePaginatedQuery(
     api.threads.list,
@@ -142,8 +162,9 @@ export function useRows(box: Box) {
     { initialNumItems: PAGE },
   );
   return {
-    rows: paged ? results : inBox(inbox, box),
+    rows: paged ? results : inBox(inbox ?? EMPTY, box),
     more: status === "CanLoadMore" ? () => loadMore(PAGE) : undefined,
+    loading: paged ? status === "LoadingFirstPage" : !inbox,
   };
 }
 
@@ -196,48 +217,69 @@ export const useEdit = () =>
     ),
   );
 
-export function useRemoveMessage() {
-  const remove = useMutation(api.threads.remove).withOptimisticUpdate((store, { messageId }) =>
+export const useReact = () =>
+  useMutation(api.threads.react).withOptimisticUpdate((store, { messageId, emoji }) => {
+    const me = store.getQuery(api.workspace.me, {});
+    if (!me) return;
+    patchMessages(store, (page) =>
+      page.map((message) => {
+        if (message._id !== messageId) return message;
+        const had = message.reactions.find((reaction) => reaction.emoji === emoji);
+        const userIds = had?.userIds.includes(me._id)
+          ? had.userIds.filter((id) => id !== me._id)
+          : [...(had?.userIds ?? []), me._id];
+        const reactions = had
+          ? message.reactions.map((reaction) =>
+              reaction.emoji === emoji ? { emoji, userIds } : reaction,
+            )
+          : [...message.reactions, { emoji, userIds }];
+        return { ...message, reactions: reactions.filter((reaction) => reaction.userIds.length) };
+      }),
+    );
+  });
+
+export const useRemoveMessage = () =>
+  useMutation(api.threads.remove).withOptimisticUpdate((store, { messageId }) =>
     patchMessages(store, (page) => page.filter((message) => message._id !== messageId)),
   );
-  return async (messageId: Id<"messages">) => {
-    const sure = await confirm({
-      title: "Delete this message?",
-      description: "It's removed for everyone in the thread. This can't be undone.",
-      confirmLabel: "Delete",
-    });
-    if (sure) await remove({ messageId });
-  };
-}
 
 export const useSend = () =>
-  useMutation(api.threads.send).withOptimisticUpdate((store, { threadId, body, files = [] }) => {
-    const me = store.getQuery(api.workspace.me, {});
-    if (!me?.workspaceId) return;
-    insertAtTop({
-      paginatedQuery: api.threads.messages,
-      argsToMatch: { threadId },
-      localQueryStore: store,
-      item: {
-        _id: crypto.randomUUID() as Id<"messages">,
-        _creationTime: Date.now(),
-        workspaceId: me.workspaceId,
-        threadId,
-        authorId: me._id,
-        body,
-        files: files.map(({ storageId, name, thumb, snippet }) => ({
-          _id: storageId as string as Id<"files">,
-          name,
-          snippet,
-          size: sizes.get(storageId) ?? 0,
-          thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
-        })),
-        links: [],
-      },
-    });
-    patchRow(store, threadId, {
-      lastAuthorId: me._id,
-      lastBody: body || files.map((file) => file.name).join(", "),
-      activeAt: Date.now(),
-    });
-  });
+  useMutation(api.threads.send).withOptimisticUpdate(
+    (store, { threadId, body, files = [], replyTo }) => {
+      const me = store.getQuery(api.workspace.me, {});
+      if (!me?.workspaceId) return;
+      const parent = store
+        .getAllQueries(api.threads.messages)
+        .flatMap(({ value }) => value?.page ?? [])
+        .find((message) => message._id === replyTo);
+      insertAtTop({
+        paginatedQuery: api.threads.messages,
+        argsToMatch: { threadId },
+        localQueryStore: store,
+        item: {
+          _id: crypto.randomUUID() as Id<"messages">,
+          _creationTime: Date.now(),
+          workspaceId: me.workspaceId,
+          threadId,
+          authorId: me._id,
+          body,
+          replyTo,
+          quoted: parent ? { _id: parent._id, authorId: parent.authorId, body: parent.body } : null,
+          files: files.map(({ storageId, name, thumb, snippet }) => ({
+            _id: storageId as string as Id<"files">,
+            name,
+            snippet,
+            size: sizes.get(storageId) ?? 0,
+            thumb: thumb && { ...thumb, id: thumb.storageId as string as Id<"files"> },
+          })),
+          links: [],
+          reactions: [],
+        },
+      });
+      patchRow(store, threadId, {
+        lastAuthorId: me._id,
+        lastBody: body || files.map((file) => file.name).join(", "),
+        activeAt: Date.now(),
+      });
+    },
+  );

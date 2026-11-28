@@ -1,39 +1,16 @@
-import { useAuthActions } from "@convex-dev/auth/react";
 import { useAsyncOptions } from "@ui-sdk/react/async-options";
 import { fuzzyScore } from "@ui-sdk/core/text-match";
 import { Command, CommandInput, CommandItem, CommandList } from "@ui-sdk/react/command";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
-import { usePreference } from "@ui-sdk/react/preferences";
-import { useShortcut } from "@ui-sdk/react/shortcuts";
+import { formatShortcut, useShortcut } from "@ui-sdk/react/shortcuts";
 import { useAction, useConvex, useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import {
-  api,
-  useBuckets,
-  useCopyInvite,
-  useMe,
-  useNames,
-  useInbox,
-  useWorkspaces,
-  type Attached,
-  type Row,
-} from "./data";
+import type { Command as Action } from "./commands";
+import { api, useNames, useInbox, type Attached, type Row } from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
-import {
-  addDraft,
-  go,
-  previews,
-  reset,
-  resetScale,
-  scaleBy,
-  sending,
-  setDialog,
-  switched,
-  theme,
-  toggleSidebar,
-} from "./state";
+import { addDraft, go, setDialog } from "./state";
 
 const GROW = { duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 
@@ -77,22 +54,13 @@ function Modal(props: {
   );
 }
 
-type Item = { value: string; label: string; hint?: string; run: () => unknown };
+type Item = { value: string; label: string; hint?: string; words?: string; run: () => unknown };
 type Hit = FunctionReturnType<typeof api.threads.search>[number];
 
-export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
+export function Search({ threadsOnly, commands }: { threadsOnly?: boolean; commands: Action[] }) {
   const [text, setText] = useState("");
   const rows = useInbox();
-  const buckets = useBuckets();
   const names = useNames();
-  const { signOut } = useAuthActions();
-  const copyInvite = useCopyInvite();
-  const me = useMe();
-  const workspaces = useWorkspaces();
-  const open = useMutation(api.workspace.open);
-  const dark = usePreference(theme).value === "dark";
-  const shown = usePreference(previews).value;
-  const send = usePreference(sending).value;
   const query = text.trim();
   const convex = useConvex();
   const related = useAction(api.search.related);
@@ -103,6 +71,7 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   });
   const ask = useAction(api.search.ask);
   const [found, setFound] = useState<Row[] | "asking">();
+  const [highlight, setHighlight] = useState<string | null>(null);
   const asked = useRef("");
 
   const consult = async () => {
@@ -112,54 +81,13 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     if (asked.current === query) setFound(answer ?? []);
   };
 
-  const command = (label: string, run: () => void, hint?: string): Item => ({
+  const actions = commands.map(({ label, run, keys, words }): Item => ({
     value: label,
     label,
-    hint,
+    hint: keys[0] && formatShortcut(keys[0]),
+    words,
     run,
-  });
-  const commands = [
-    command("Write a new message", () => setDialog("new"), window.desktop && "⌘N"),
-    command("Go to All Threads", () => go({ box: "all", thread: undefined })),
-    command("Go to Sent", () => go({ box: "sent", thread: undefined })),
-    command("Go to Drafts", () => go({ box: "drafts", thread: undefined })),
-    command("Go to Buckets", () => go({ box: "inbox", thread: undefined })),
-    ...buckets.map((bucket, index) =>
-      command(
-        `Go to ${bucket.name}`,
-        () => go({ box: bucket._id, thread: undefined }),
-        index < 9 ? `⌘${index + 1}` : undefined,
-      ),
-    ),
-    command("Search threads", () => setDialog("find"), "⌘F"),
-    command("Show or hide the sidebar", toggleSidebar, "⌘\\"),
-    command("Larger thread text", () => scaleBy(10), "⌘="),
-    command("Smaller thread text", () => scaleBy(-10), "⌘−"),
-    command("Actual size", resetScale, "⌘0"),
-    command("Open Settings", () => setDialog("settings"), "⌘,"),
-    command("Edit buckets", () => setDialog("settings", "Buckets")),
-    command("Edit groups", () => setDialog("settings", "Groups")),
-    dark
-      ? command("Switch to the light theme", () => theme.set("light"))
-      : command("Switch to the dark theme", () => theme.set("dark")),
-    shown === "on"
-      ? command("Hide previews of images and links", () => previews.set("off"))
-      : command("Show previews of images and links", () => previews.set("on")),
-    send === "enter"
-      ? command("Send messages with ⌘↵", () => sending.set("mod+enter"))
-      : command("Send messages with ↵", () => sending.set("enter")),
-    ...workspaces
-      .filter((workspace) => workspace._id !== me?.workspaceId)
-      .map((workspace) =>
-        command(
-          `Switch to ${workspace.name}`,
-          () => void open({ id: workspace._id }).then(() => switched()),
-        ),
-      ),
-    command("Add a workspace", () => setDialog("workspace")),
-    command("Copy the invite link", copyInvite),
-    command("Sign out", () => void signOut().then(reset)),
-  ];
+  }));
   const thread = (row: Row): Item => ({
     value: row.threadId,
     label: row.title,
@@ -174,9 +102,15 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
     hint: hit.title,
     run: () => go({ thread: hit.threadId }),
   }));
-  const local = threadsOnly ? threads : commands;
+  const local = threadsOnly ? threads : actions;
   const scored = local
-    .map((item) => ({ item, score: fuzzyScore(item.label, query) }))
+    .map((item) => ({
+      item,
+      score: Math.max(
+        fuzzyScore(item.label, query),
+        item.words ? fuzzyScore(item.words, query) * 0.9 : 0,
+      ),
+    }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
     .map(({ item }) => item);
@@ -201,8 +135,13 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
       <Command
         filter={false}
         status={near.status}
+        value={
+          items.some((item) => item.value === highlight) ? highlight : (items[0]?.value ?? null)
+        }
+        onValueChange={setHighlight}
         onQueryChange={(next, details) => {
           if (details.reason === "escape-key") return setDialog(null);
+          setHighlight(null);
           asked.current = "";
           setFound(undefined);
           setText(next);

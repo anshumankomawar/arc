@@ -50,7 +50,12 @@ function Switcher() {
         {invitations.length > 0 && <span className="count">{invitations.length}</span>}
         <Icon name="chevron" />
       </MenuTrigger>
-      <MenuContent className="panel menu workspaces" align="start" sideOffset={0}>
+      <MenuContent
+        className="panel menu workspaces"
+        align="start"
+        sideOffset={0}
+        collisionPadding={0}
+      >
         {others.map((workspace) => (
           <MenuItem key={workspace._id} value={`open ${workspace._id}`} label={workspace.name}>
             <span className="clip">{workspace.name}</span>

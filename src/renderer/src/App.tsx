@@ -3,86 +3,16 @@ import { Resizable, ResizableHandle, ResizablePanel } from "@ui-sdk/react/resiza
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { Toolbar, ToolbarButton, ToolbarGroup } from "@ui-sdk/react/toolbar";
 import { useEffect } from "react";
-import { sections, useBuckets, useMark, useMe, useRows, type Row } from "./data";
+import { useCommandKeys, useCommands } from "./commands";
+import { sections, useBuckets, useMe, useRows } from "./data";
 import { Icon } from "./Icon";
 import { List } from "./List";
 import { NewMessage, Search } from "./Palette";
 import { Settings } from "./Settings";
 import { AddWorkspace } from "./SignIn";
 import { Sidebar } from "./Sidebar";
-import {
-  back,
-  forward,
-  go,
-  resetScale,
-  scaleBy,
-  setDialog,
-  show,
-  toggleSidebar,
-  useUI,
-  useView,
-} from "./state";
+import { back, forward, go, setDialog, show, toggleSidebar, useUI, useView } from "./state";
 import { DraftView, Thread } from "./Thread";
-
-const BUCKET_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-function useShortcuts(rows: Row[]) {
-  const view = useView();
-  const buckets = useBuckets();
-  const mark = useMark();
-  const threadId = view.thread;
-  const order = sections(rows, view.box, buckets).flatMap((section) => section.rows);
-  const at = order.findIndex((row) => row.threadId === threadId);
-  const first = order[0]?.threadId;
-  useEffect(() => {
-    if (first && !view.thread && !view.draft) show(first);
-  }, [view.box, !first]);
-
-  const open = (index: number) => {
-    const row = order[Math.max(0, Math.min(order.length - 1, index))];
-    if (row) go({ thread: row.threadId });
-  };
-  const done = () => {
-    if (!threadId) return;
-    void mark({ threadId, inbox: false });
-    go({ thread: (order[at + 1] ?? order[at - 1])?.threadId });
-  };
-  const unread = () => {
-    if (!threadId) return;
-    go({ thread: undefined });
-    void mark({ threadId, unread: true });
-  };
-  const leave = () => {
-    const focused = document.activeElement as HTMLElement | null;
-    if (focused?.isContentEditable) focused.blur();
-    else go({ thread: undefined });
-  };
-
-  useShortcut("mod+k", () => setDialog("search"), { description: "Search" });
-  useShortcut("mod+f", () => setDialog("find"), { description: "Search threads" });
-  useShortcut(window.desktop ? "mod+n" : null, () => setDialog("new"), {
-    description: "New message",
-  });
-  useShortcut("mod+,", () => setDialog("settings"), { description: "Settings" });
-  useShortcut("mod+[", back, { description: "Back" });
-  useShortcut("mod+]", forward, { description: "Forward" });
-  useShortcut("mod+\\", toggleSidebar, { description: "Show or hide the sidebar" });
-  useShortcut("mod+=", () => scaleBy(10), { description: "Larger thread text" });
-  useShortcut("mod+-", () => scaleBy(-10), { description: "Smaller thread text" });
-  useShortcut("mod+0", resetScale, { description: "Actual size" });
-  useShortcut("mod+e", done, { description: "Mark done" });
-  useShortcut("e", done, { description: "Mark done" });
-  useShortcut("u", unread, { description: "Mark unread" });
-  useShortcut("j", () => open(at + 1), { description: "Next thread" });
-  useShortcut("k", () => open(at - 1), { description: "Previous thread" });
-  useShortcut("escape", leave, { allowInInput: true, description: "Close" });
-  for (const key of BUCKET_KEYS)
-    useShortcut(
-      buckets[key - 1] ? `mod+${key}` : null,
-      () => go({ box: buckets[key - 1]._id, thread: undefined }),
-      { description: `Bucket ${key}` },
-    );
-}
 
 export function App() {
   const me = useMe();
@@ -90,13 +20,29 @@ export function App() {
   const { at, history, sidebar, dialog, drafts } = useUI();
   const draft = drafts.find(({ id }) => id === view.draft);
   const listed = useRows(view.box);
+  const buckets = useBuckets();
+  const commands = useCommands(listed.rows);
+  const first = sections(listed.rows, view.box, buckets)[0]?.rows[0]?.threadId;
+  useEffect(() => {
+    if (first && !view.thread && !view.draft) show(first);
+  }, [view.box, !first]);
+  useCommandKeys(commands);
+  useShortcut("mod+k", () => setDialog("search"), { description: "Search" });
+  useShortcut(
+    "escape",
+    () => {
+      const focused = document.activeElement as HTMLElement | null;
+      if (focused?.isContentEditable) focused.blur();
+      else go({ thread: undefined });
+    },
+    { allowInInput: true, description: "Close" },
+  );
   useEffect(() => {
     const onMouseUp = ({ button }: MouseEvent) =>
       button === 3 ? back() : button === 4 && forward();
     window.addEventListener("mouseup", onMouseUp);
     return () => window.removeEventListener("mouseup", onMouseUp);
   }, []);
-  useShortcuts(listed.rows);
   if (!me) return null;
 
   return (
@@ -162,7 +108,9 @@ export function App() {
       {dialog === "new" && <NewMessage />}
       {dialog === "settings" && <Settings />}
       {dialog === "workspace" && <AddWorkspace />}
-      {(dialog === "search" || dialog === "find") && <Search threadsOnly={dialog === "find"} />}
+      {(dialog === "search" || dialog === "find") && (
+        <Search threadsOnly={dialog === "find"} commands={commands} />
+      )}
     </>
   );
 }

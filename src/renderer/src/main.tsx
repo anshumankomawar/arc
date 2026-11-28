@@ -8,7 +8,7 @@ import { App } from "./App";
 import { api, useMe } from "./data";
 import { Landing } from "./Landing";
 import { SignIn, Start } from "./SignIn";
-import { invite, previews, sending, switched, theme } from "./state";
+import { choices, density, invite, switched, theme } from "./state";
 import "./app.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
@@ -29,7 +29,9 @@ class UntilSignedOut extends Component<{ children: ReactNode }> {
 
 function Theme() {
   const { value } = usePreference(theme);
+  const compact = usePreference(density).value === "compact";
   useEffect(() => window.desktop?.setTheme(value), [value]);
+  useEffect(() => window.desktop?.setCompact(compact), [compact]);
   return null;
 }
 
@@ -64,7 +66,7 @@ root.render(
     </main>
     <ConvexAuthProvider client={convex} api={api.auth} storage={storage}>
       <ConvexQueryCacheProvider>
-        <Preferences preferences={[theme, previews, sending]}>
+        <Preferences preferences={choices.map((choice) => choice.preference)}>
           <Theme />
           <Unauthenticated>{window.desktop || invite ? <SignIn /> : <Landing />}</Unauthenticated>
           <Authenticated>

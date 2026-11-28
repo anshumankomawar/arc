@@ -319,12 +319,14 @@ export const purge = internalMutation({
       for (const group of groups) await ctx.db.delete(group._id);
       return;
     }
-    const inThread = (table: "messages" | "links" | "members" | "vectors" | "files") =>
+    const inThread = (
+      table: "messages" | "links" | "members" | "vectors" | "files" | "reactions",
+    ) =>
       ctx.db
         .query(table)
         .withIndex("thread", (q) => q.eq("threadId", thread._id))
         .collect();
-    for (const table of ["messages", "links", "members", "vectors", "files"] as const)
+    for (const table of ["messages", "links", "members", "vectors", "files", "reactions"] as const)
       for (const row of await inThread(table)) {
         if ("storageId" in row && row.storageId)
           await ctx.storage.delete(row.storageId).catch(() => {});
