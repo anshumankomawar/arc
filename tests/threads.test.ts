@@ -117,3 +117,46 @@ test("threads stay inside their workspace and their members", async () => {
   expect(await linus.as.query(api.threads.search, { text: "secret" })).toEqual([]);
   expect(await grace.as.query(api.threads.search, { text: "secret" })).toHaveLength(1);
 });
+
+test("only its author edits a message, and the thread shows the edit", async () => {
+  const { ada, grace, inbox } = await setup();
+  const threadId = await ada.as.mutation(api.threads.start, {
+    body: `${personToken(grace._id)} lunch?`,
+  });
+  const [first] = await messagesOf(ada, threadId);
+  const edit = (who: typeof ada, body: string) =>
+    who.as.mutation(api.threads.edit, { messageId: first._id, body });
+
+  await expect(edit(grace, "dinner?")).rejects.toThrow();
+  await expect(edit(ada, " ")).rejects.toThrow();
+  await edit(ada, `${personToken(grace._id)} dinner?`);
+
+  expect(await messagesOf(grace, threadId)).toMatchObject([
+    { body: `${personToken(grace._id)} dinner?`, editedAt: expect.any(Number) },
+  ]);
+  expect(await inbox(grace)).toMatchObject([{ title: "dinner?", unread: true }]);
+});
+
+test("deleting a message takes its files, and a thread keeps its last message", async () => {
+  const { t, ada, grace, inbox } = await setup();
+  const threadId = await ada.as.mutation(api.threads.start, {
+    body: `${personToken(grace._id)} hi`,
+  });
+  const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["x"])));
+  await ada.as.mutation(api.threads.send, {
+    threadId,
+    body: "the file",
+    files: [{ storageId, name: "a.txt" }],
+  });
+  const [first, second] = await messagesOf(ada, threadId);
+  const remove = (who: typeof ada, messageId: typeof first._id) =>
+    who.as.mutation(api.threads.remove, { messageId });
+
+  await expect(remove(grace, second._id)).rejects.toThrow();
+  await remove(ada, second._id);
+
+  expect(await messagesOf(grace, threadId)).toMatchObject([{ _id: first._id }]);
+  expect(await inbox(grace)).toMatchObject([{ lastBody: `${personToken(grace._id)} hi` }]);
+  expect(await t.run((ctx) => ctx.db.system.get(storageId))).toBeNull();
+  await expect(remove(ada, first._id)).rejects.toThrow();
+});

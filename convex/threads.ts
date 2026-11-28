@@ -91,14 +91,12 @@ export async function post(
       snippet: snippet?.slice(0, 1500),
     });
   let text = body;
-  let shown = body;
   for (const id of new Set(mentions(body, "file"))) {
     const fileId = ctx.db.normalizeId("files", id);
     const source = fileId && (await ctx.db.get(fileId));
     if (!source || source.hidden || source.workspaceId !== workspaceId)
       throw new ConvexError("Not found");
     await membership(ctx, source.threadId);
-    shown = shown.replaceAll(fileToken(id), source.name);
     if (source.threadId === threadId) continue;
     const copy = ({ _id, _creationTime, ...row }: Doc<"files">) =>
       ctx.db.insert("files", { ...row, threadId, messageId });
@@ -107,10 +105,7 @@ export async function post(
     text = text.replaceAll(fileToken(id), fileToken(await copy({ ...source, thumb })));
   }
   if (text !== body) await ctx.db.patch(messageId, { body: text });
-  await ctx.db.patch(threadId, {
-    lastAuthorId: authorId,
-    lastBody: shown || files.map((file) => file.name).join(", "),
-  });
+  await retell(ctx, threadId);
 
   for (const userId of everyone) {
     const row = existing.get(userId);
@@ -131,6 +126,61 @@ export async function post(
     }
     await ctx.db.patch(memberId, { activeAt, inbox: true, unread: true });
     if (!row?.bucketId) await ctx.scheduler.runAfter(0, internal.ai.sort, { memberId });
+  }
+}
+
+const inThread = (ctx: MutationCtx, threadId: Id<"threads">) =>
+  ctx.db.query("messages").withIndex("thread", (q) => q.eq("threadId", threadId));
+
+async function retell(ctx: MutationCtx, threadId: Id<"threads">) {
+  const last = (await inThread(ctx, threadId).order("desc").first())!;
+  const files = await ctx.db
+    .query("files")
+    .withIndex("message", (q) => q.eq("messageId", last._id))
+    .take(64);
+  const named = new Map<string, string>(files.map((file) => [file._id, file.name]));
+  const shown = mentions(last.body, "file").reduce(
+    (body, id) => body.replaceAll(fileToken(id), named.get(id) ?? ""),
+    last.body,
+  );
+  await ctx.db.patch(threadId, {
+    lastAuthorId: last.authorId,
+    lastBody:
+      shown ||
+      files
+        .filter((file) => !file.hidden)
+        .map((file) => file.name)
+        .join(", "),
+  });
+}
+
+async function own(ctx: MutationCtx & Ctx, messageId: Id<"messages">) {
+  const message = await ctx.db.get(messageId);
+  if (message?.authorId !== ctx.me._id || message.workspaceId !== ctx.me.workspaceId)
+    throw new ConvexError("Not found");
+  await membership(ctx, message.threadId);
+  return message;
+}
+
+export async function drop(
+  ctx: MutationCtx,
+  messageId: Id<"messages">,
+  table: "links" | "vectors" | "files",
+) {
+  const rows = await ctx.db
+    .query(table)
+    .withIndex("message", (q) => q.eq("messageId", messageId))
+    .collect();
+  for (const row of rows) {
+    await ctx.db.delete(row._id);
+    const storageId = "storageId" in row && row.storageId;
+    const shared =
+      storageId &&
+      (await ctx.db
+        .query("files")
+        .withIndex("storage", (q) => q.eq("storageId", storageId))
+        .first());
+    if (storageId && !shared) await ctx.storage.delete(storageId);
   }
 }
 
@@ -318,5 +368,41 @@ export const move = mutation({
     const bucket = bucketId && (await ctx.db.get(bucketId));
     if (bucketId && bucket?.userId !== ctx.me._id) throw new ConvexError("Not found");
     await ctx.db.patch(row._id, { bucketId });
+  },
+});
+
+export const edit = mutation({
+  args: { messageId: v.id("messages"), body: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { messageId, body }) => {
+    const message = await own(ctx, messageId);
+    const kept = mentions(message.body, "file");
+    if (mentions(body, "file").some((id) => !kept.includes(id))) throw new ConvexError("Not found");
+    if (body === message.body) return;
+    const attached = await ctx.db
+      .query("files")
+      .withIndex("message", (q) => q.eq("messageId", messageId))
+      .first();
+    if (!body.trim() && !attached) throw new ConvexError("Nothing left to keep");
+    await ctx.db.patch(messageId, { body, editedAt: Date.now() });
+    await drop(ctx, messageId, "links");
+    await ctx.scheduler.runAfter(0, internal.search.index, { messageId });
+    if (urlsIn(body).length) await ctx.scheduler.runAfter(0, internal.links.unfurl, { messageId });
+    if ((await inThread(ctx, message.threadId).first())?._id === messageId)
+      await ctx.db.patch(message.threadId, { title: titleOf(body) });
+    await retell(ctx, message.threadId);
+  },
+});
+
+export const remove = mutation({
+  args: { messageId: v.id("messages") },
+  returns: v.null(),
+  handler: async (ctx, { messageId }) => {
+    const { threadId } = await own(ctx, messageId);
+    if ((await inThread(ctx, threadId).take(2)).length < 2)
+      throw new ConvexError("A thread keeps its last message");
+    for (const table of ["links", "vectors", "files"] as const) await drop(ctx, messageId, table);
+    await ctx.db.delete(messageId);
+    await retell(ctx, threadId);
   },
 });

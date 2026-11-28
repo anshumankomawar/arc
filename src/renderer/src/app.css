@@ -181,7 +181,6 @@ small {
   border: 1px solid var(--line);
   border-radius: 7px;
 
-  &:hover,
   &:focus-visible,
   &[data-checked] {
     background: var(--selected);
@@ -246,9 +245,6 @@ small {
       border-radius: 11px;
       -webkit-app-region: no-drag;
 
-      &:hover:not([data-disabled]) {
-        background: var(--selected);
-      }
       &[data-disabled] {
         opacity: 0.35;
       }
@@ -325,7 +321,7 @@ small {
 .sidebar .switcher,
 .settings [data-slot="tabs-tab"],
 .settings [data-slot="listbox-item"] {
-  height: 30px;
+  height: 28px;
   padding: 0 8px;
   border-radius: 8px;
 
@@ -347,7 +343,6 @@ small {
     gap: 8px;
     align-items: center;
     flex-shrink: 0;
-    height: 28px;
   }
   & .nested {
     margin-left: 15px;
@@ -396,27 +391,19 @@ small {
     height: 28px;
     border-radius: 8px;
     color: var(--text-2);
-
-    &:hover {
-      background: var(--hover);
-    }
   }
   & .profile {
     gap: 6px;
     margin: 0 8px 9px;
     padding-left: 6px;
     color: var(--text-2);
-
-    &:hover {
-      background: var(--hover);
-    }
   }
 }
 
 .list {
   & .scroll {
     flex: 1;
-    padding: 9px 8px 26px;
+    padding: 6px 8px 26px;
     overflow-y: auto;
 
     &:empty {
@@ -427,7 +414,7 @@ small {
     display: flex;
     gap: 8px;
     align-items: center;
-    height: 30px;
+    height: 28px;
     padding: 0 10px;
     color: var(--text-2);
   }
@@ -502,7 +489,7 @@ small {
     flex-direction: column;
     gap: 18px;
     max-width: 850px;
-    padding: 14px 26px 44px 31px;
+    padding: 10px 26px 44px 31px;
   }
   & .earlier {
     align-self: center;
@@ -510,11 +497,6 @@ small {
     padding: 0 10px;
     border-radius: 7px;
     color: var(--text-3);
-
-    &:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
   }
   & .turn {
     display: flex;
@@ -553,6 +535,17 @@ small {
         text-decoration: underline;
       }
     }
+    & .edited {
+      margin-left: 4px;
+      color: var(--text-3);
+      font-size: 11px;
+    }
+  }
+  & .hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-3);
+    font-size: 11px;
   }
 }
 
@@ -633,9 +626,6 @@ small {
     height: 19px;
     color: var(--text-3);
 
-    &:hover {
-      color: var(--text);
-    }
     .palette & {
       height: 42px;
       margin-right: 15px;
@@ -913,7 +903,7 @@ small {
   & [data-slot="tabs-list"],
   & .split nav {
     flex: 0 0 180px;
-    padding: 9px 8px;
+    padding: 6px 8px;
     border-right: 1px solid var(--line);
   }
   & [data-slot="tabs-tab"] {
@@ -923,7 +913,7 @@ small {
   & [data-slot="tabs-panel"] {
     flex: 1;
     min-width: 0;
-    padding: 16px 20px;
+    padding: 12px 20px 16px;
     overflow-y: auto;
   }
   & p,
@@ -962,9 +952,6 @@ small {
       flex: 0 0 150px;
       color: var(--text);
     }
-    &:hover {
-      background: var(--hover);
-    }
     &:focus {
       color: var(--text);
       background: var(--selected);
@@ -999,7 +986,7 @@ small {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 26px;
+      height: 28px;
       padding-left: 8px;
       color: var(--text-3);
       font-size: 12px;
@@ -1015,7 +1002,7 @@ small {
       border-radius: 6px;
       color: var(--text-3);
 
-      &:is(:hover, :focus-visible, [data-active]) {
+      &:is(:focus-visible, [data-active]) {
         color: var(--text);
         background: var(--hover);
       }
@@ -1026,12 +1013,12 @@ small {
     flex: 1;
     flex-direction: column;
     min-width: 0;
-    padding: 9px 20px 12px;
+    padding: 6px 20px 12px;
 
     & .name {
       display: flex;
       align-items: center;
-      height: 30px;
+      height: 28px;
 
       & form {
         display: flex;
@@ -1080,10 +1067,6 @@ small {
       border-color: transparent;
       color: var(--text-3);
       font-size: 12px;
-
-      &:hover {
-        color: var(--text);
-      }
     }
     & .remove {
       display: grid;
@@ -1092,10 +1075,6 @@ small {
       padding: 0;
       border-color: transparent;
       color: var(--text-3);
-
-      &:hover {
-        color: var(--danger);
-      }
     }
     & .row {
       min-height: 36px;
@@ -1112,17 +1091,9 @@ small {
   & [data-slot="tabs-panel"] .text {
     border-color: transparent;
     color: var(--text-3);
-
-    &:hover {
-      color: var(--text);
-    }
   }
   & [data-slot="tabs-panel"] .danger {
     color: var(--danger);
-
-    &:hover {
-      color: light-dark(#a51e1e, #ffb3ab);
-    }
   }
   & [data-slot="tabs-panel"] .quiet {
     border-color: transparent;
@@ -1148,7 +1119,6 @@ small {
       border-radius: 6px;
       color: var(--text-3);
 
-      &:hover,
       &:focus-visible,
       &[data-checked] {
         background: none;

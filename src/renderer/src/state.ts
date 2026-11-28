@@ -25,6 +25,14 @@ export const previews = createPreference({
   storage: createLocalStorage("previews"),
 });
 
+export const sending = createPreference({
+  values: ["enter", "mod+enter"],
+  defaultValue: "enter",
+  attribute: "data-sending",
+  global: true,
+  storage: createLocalStorage("sending"),
+});
+
 type UI = {
   history: View[];
   at: number;
@@ -64,7 +72,8 @@ export function go(view: Partial<View>) {
   const next = { ...here, draft: undefined, ...view };
   const same = next.box === here.box && next.thread === here.thread && next.draft === here.draft;
   if (same) return set({ dialog: null });
-  set({ history: [...history.slice(0, at + 1), next], at: at + 1, dialog: null });
+  const kept = [...history.slice(0, at + 1), next].slice(-100);
+  set({ history: kept, at: kept.length - 1, dialog: null });
 }
 export const show = (thread: Id<"threads">) =>
   set(({ history, at }) => ({

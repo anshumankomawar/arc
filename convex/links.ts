@@ -75,7 +75,18 @@ export const save = internalMutation({
   },
   handler: async (ctx, link) => {
     const message = await ctx.db.get(link.messageId);
-    if (!message) return;
+    const saved = await ctx.db
+      .query("links")
+      .withIndex("message", (q) => q.eq("messageId", link.messageId))
+      .take(3);
+    if (
+      !message ||
+      !urlsIn(message.body).includes(link.url) ||
+      saved.some((row) => row.url === link.url)
+    ) {
+      if (link.storageId) await ctx.storage.delete(link.storageId);
+      return;
+    }
     const { workspaceId, threadId } = message;
     await ctx.db.insert("links", { workspaceId, threadId, ...link });
   },

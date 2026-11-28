@@ -1,13 +1,12 @@
 import { Listbox, ListboxGroup, ListboxGroupLabel, ListboxItem } from "@ui-sdk/react/listbox";
-import { sections, useBuckets, useMark, useMove, useNames, useRows, type Row } from "./data";
+import { sections, useBuckets, useMark, useMove, useNames, type Row } from "./data";
 import { Icon } from "./Icon";
 import { ContextMenu, type MenuEntry } from "./Menu";
 import { go, removeDraft, useUI, useView } from "./state";
 import { stamp } from "./time";
 
-export function List() {
+export function List({ rows, more }: { rows: Row[]; more?: () => void }) {
   const { box, thread, draft: open } = useView();
-  const { rows, more } = useRows(box);
   const buckets = useBuckets();
   const drafts = useUI((ui) => ui.drafts);
   const names = useNames();

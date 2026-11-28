@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createServer, type Server } from "node:http";
 import { basename, join } from "node:path";
 import icon from "../../build/icon.png?asset";
+import lightIcon from "../../build/icon-light.png?asset";
 import fraunces from "../renderer/src/fonts/fraunces-latin-wght.woff2?asset";
 import hanken from "../renderer/src/fonts/hanken-grotesk-latin-wght.woff2?asset";
 
@@ -86,10 +87,10 @@ ipcMain.handle(
         resolve(params.get("convexAuthCode"));
       });
       waiting = server;
-      server.on("close", () => resolve(null));
+      const expire = setTimeout(() => server.close(), 300_000);
+      server.on("close", () => (clearTimeout(expire), resolve(null)));
       server.on("error", () => resolve(null));
       server.listen(47201, "127.0.0.1", () => void shell.openExternal(url));
-      setTimeout(() => server.close(), 300_000);
     }),
 );
 
@@ -100,6 +101,7 @@ const previews = join(app.getPath("temp"), "arc-previews");
 const clearPreviews = () => rmSync(previews, { recursive: true, force: true });
 
 ipcMain.handle("preview", (_event, name: string, bytes: ArrayBuffer) => {
+  clearPreviews();
   mkdirSync(previews, { recursive: true });
   const path = join(mkdtempSync(join(previews, "file-")), basename(name));
   writeFileSync(path, Buffer.from(bytes));
@@ -111,6 +113,7 @@ ipcMain.on("saved", (event) => event.sender.session.flushStorageData());
 ipcMain.on("theme", (_event, theme: "dark" | "light") => {
   nativeTheme.themeSource = theme;
   window?.setBackgroundColor(GROUND[theme]);
+  app.dock?.setIcon(theme === "dark" ? icon : lightIcon);
 });
 
 app.on("before-quit", () => {
@@ -139,7 +142,7 @@ void app.whenReady().then(() => {
   if (app.isPackaged) {
     update();
     setInterval(update, 4 * 60 * 60 * 1000);
-  } else app.dock?.setIcon(icon);
+  }
   if (process.platform === "darwin")
     systemPreferences.registerDefaults({
       NSTextInsertionPointBlinkPeriodOn: 1e9,

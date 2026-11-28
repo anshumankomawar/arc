@@ -3,7 +3,7 @@ import { Resizable, ResizableHandle, ResizablePanel } from "@ui-sdk/react/resiza
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { Toolbar, ToolbarButton, ToolbarGroup } from "@ui-sdk/react/toolbar";
 import { useEffect } from "react";
-import { sections, useBuckets, useMark, useMe, useRows } from "./data";
+import { sections, useBuckets, useMark, useMe, useRows, type Row } from "./data";
 import { Icon } from "./Icon";
 import { List } from "./List";
 import { NewMessage, Search } from "./Palette";
@@ -26,9 +26,8 @@ import { DraftView, Thread } from "./Thread";
 
 const BUCKET_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-function useShortcuts() {
+function useShortcuts(rows: Row[]) {
   const view = useView();
-  const { rows } = useRows(view.box);
   const buckets = useBuckets();
   const mark = useMark();
   const threadId = view.thread;
@@ -90,13 +89,14 @@ export function App() {
   const view = useView();
   const { at, history, sidebar, dialog, drafts } = useUI();
   const draft = drafts.find(({ id }) => id === view.draft);
+  const listed = useRows(view.box);
   useEffect(() => {
     const onMouseUp = ({ button }: MouseEvent) =>
       button === 3 ? back() : button === 4 && forward();
     window.addEventListener("mouseup", onMouseUp);
     return () => window.removeEventListener("mouseup", onMouseUp);
   }, []);
-  useShortcuts();
+  useShortcuts(listed.rows);
   if (!me) return null;
 
   return (
@@ -145,7 +145,7 @@ export function App() {
         <ResizablePanel id="main">
           <Resizable className="columns" autoSaveId="list">
             <ResizablePanel id="list" defaultSize="374px" minSize="310px" maxSize="660px">
-              <List />
+              <List {...listed} />
             </ResizablePanel>
             <ResizableHandle aria-label="Resize list" />
             <ResizablePanel id="thread">

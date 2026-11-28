@@ -3,6 +3,7 @@ import { useAsyncOptions } from "@ui-sdk/react/async-options";
 import { fuzzyScore } from "@ui-sdk/core/text-match";
 import { Command, CommandInput, CommandItem, CommandList } from "@ui-sdk/react/command";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
+import { usePreference } from "@ui-sdk/react/preferences";
 import { useShortcut } from "@ui-sdk/react/shortcuts";
 import { useAction, useConvex, useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -11,14 +12,28 @@ import {
   api,
   useBuckets,
   useCopyInvite,
+  useMe,
   useNames,
   useInbox,
+  useWorkspaces,
   type Attached,
   type Row,
 } from "./data";
 import { Icon } from "./Icon";
 import { MessageBox } from "./MessageBox";
-import { addDraft, go, reset, setDialog, theme } from "./state";
+import {
+  addDraft,
+  go,
+  previews,
+  reset,
+  resetScale,
+  scaleBy,
+  sending,
+  setDialog,
+  switched,
+  theme,
+  toggleSidebar,
+} from "./state";
 
 const GROW = { duration: 260, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 
@@ -72,6 +87,12 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
   const names = useNames();
   const { signOut } = useAuthActions();
   const copyInvite = useCopyInvite();
+  const me = useMe();
+  const workspaces = useWorkspaces();
+  const open = useMutation(api.workspace.open);
+  const dark = usePreference(theme).value === "dark";
+  const shown = usePreference(previews).value;
+  const send = usePreference(sending).value;
   const query = text.trim();
   const convex = useConvex();
   const related = useAction(api.search.related);
@@ -110,9 +131,32 @@ export function Search({ threadsOnly }: { threadsOnly?: boolean }) {
         index < 9 ? `⌘${index + 1}` : undefined,
       ),
     ),
+    command("Search threads", () => setDialog("find"), "⌘F"),
+    command("Show or hide the sidebar", toggleSidebar, "⌘\\"),
+    command("Larger thread text", () => scaleBy(10), "⌘="),
+    command("Smaller thread text", () => scaleBy(-10), "⌘−"),
+    command("Actual size", resetScale, "⌘0"),
     command("Open Settings", () => setDialog("settings"), "⌘,"),
-    command("Switch to the dark theme", () => theme.set("dark")),
-    command("Switch to the light theme", () => theme.set("light")),
+    command("Edit buckets", () => setDialog("settings", "Buckets")),
+    command("Edit groups", () => setDialog("settings", "Groups")),
+    dark
+      ? command("Switch to the light theme", () => theme.set("light"))
+      : command("Switch to the dark theme", () => theme.set("dark")),
+    shown === "on"
+      ? command("Hide previews of images and links", () => previews.set("off"))
+      : command("Show previews of images and links", () => previews.set("on")),
+    send === "enter"
+      ? command("Send messages with ⌘↵", () => sending.set("mod+enter"))
+      : command("Send messages with ↵", () => sending.set("enter")),
+    ...workspaces
+      .filter((workspace) => workspace._id !== me?.workspaceId)
+      .map((workspace) =>
+        command(
+          `Switch to ${workspace.name}`,
+          () => void open({ id: workspace._id }).then(() => switched()),
+        ),
+      ),
+    command("Add a workspace", () => setDialog("workspace")),
     command("Copy the invite link", copyInvite),
     command("Sign out", () => void signOut().then(reset)),
   ];
@@ -205,7 +249,7 @@ export function NewMessage() {
         label="New Message"
         mustMention
         modal
-        placeholder="Write a message, @mention who it's for, ⌘↵ to send"
+        placeholder="Write a message, @mention who it's for"
         onSend={(body, files) => void send(body, files)}
         onChange={(text) => (written.current = text)}
       />

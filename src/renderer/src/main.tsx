@@ -8,7 +8,7 @@ import { App } from "./App";
 import { api, useMe } from "./data";
 import { Landing } from "./Landing";
 import { SignIn, Start } from "./SignIn";
-import { invite, previews, switched, theme } from "./state";
+import { invite, previews, sending, switched, theme } from "./state";
 import "./app.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
@@ -49,7 +49,12 @@ function Home() {
   return me && !joining && (me.workspaceId ? <App /> : <Start />);
 }
 
-createRoot(document.getElementById("root")!).render(
+const root = createRoot(document.getElementById("root")!);
+import.meta.hot?.dispose(() => {
+  root.unmount();
+  void convex.close();
+});
+root.render(
   <StrictMode>
     <main className="welcome soon">
       <div>
@@ -59,7 +64,7 @@ createRoot(document.getElementById("root")!).render(
     </main>
     <ConvexAuthProvider client={convex} api={api.auth} storage={storage}>
       <ConvexQueryCacheProvider>
-        <Preferences preferences={[theme, previews]}>
+        <Preferences preferences={[theme, previews, sending]}>
           <Theme />
           <Unauthenticated>{window.desktop || invite ? <SignIn /> : <Landing />}</Unauthenticated>
           <Authenticated>

@@ -19,6 +19,7 @@ export { api };
 export { FILE_LIMIT, LINK, mentions, parts } from "../../../convex/text";
 export type { Doc, Id };
 export type Row = FunctionReturnType<typeof api.threads.inbox>[number];
+export type Message = FunctionReturnType<typeof api.threads.messages>["page"][number];
 export type Attached = NonNullable<FunctionArgs<typeof api.threads.send>["files"]>[number];
 
 const EMPTY: never[] = [];
@@ -47,18 +48,18 @@ export function useRemoveBucket() {
 async function thumbnail(file: File) {
   const full = await createImageBitmap(file).catch(() => null);
   if (!full) return;
-  const scale = Math.min(1, 720 / Math.max(full.width, full.height));
+  const size = { width: full.width, height: full.height };
+  const scale = Math.min(1, 720 / Math.max(size.width, size.height));
   const small = await createImageBitmap(full, {
-    resizeWidth: Math.round(full.width * scale),
-    resizeHeight: Math.round(full.height * scale),
+    resizeWidth: Math.round(size.width * scale),
+    resizeHeight: Math.round(size.height * scale),
     resizeQuality: "high",
   });
+  full.close();
   const canvas = new OffscreenCanvas(small.width, small.height);
   canvas.getContext("2d")!.drawImage(small, 0, 0);
-  return {
-    blob: await canvas.convertToBlob({ type: "image/webp", quality: 0.9 }),
-    size: { width: full.width, height: full.height },
-  };
+  small.close();
+  return { blob: await canvas.convertToBlob({ type: "image/webp", quality: 0.9 }), size };
 }
 export function useUpload() {
   const uploadUrl = useMutation(api.files.uploadUrl);
@@ -180,6 +181,34 @@ export const useMove = () =>
   useMutation(api.threads.move).withOptimisticUpdate((store, { threadId, bucketId }) =>
     patchRow(store, threadId, { bucketId }),
   );
+
+function patchMessages(store: OptimisticLocalStore, change: (page: Message[]) => Message[]) {
+  for (const { args, value } of store.getAllQueries(api.threads.messages))
+    if (value) store.setQuery(api.threads.messages, args, { ...value, page: change(value.page) });
+}
+
+export const useEdit = () =>
+  useMutation(api.threads.edit).withOptimisticUpdate((store, { messageId, body }) =>
+    patchMessages(store, (page) =>
+      page.map((message) =>
+        message._id === messageId ? { ...message, body, editedAt: Date.now() } : message,
+      ),
+    ),
+  );
+
+export function useRemoveMessage() {
+  const remove = useMutation(api.threads.remove).withOptimisticUpdate((store, { messageId }) =>
+    patchMessages(store, (page) => page.filter((message) => message._id !== messageId)),
+  );
+  return async (messageId: Id<"messages">) => {
+    const sure = await confirm({
+      title: "Delete this message?",
+      description: "It's removed for everyone in the thread. This can't be undone.",
+      confirmLabel: "Delete",
+    });
+    if (sure) await remove({ messageId });
+  };
+}
 
 export const useSend = () =>
   useMutation(api.threads.send).withOptimisticUpdate((store, { threadId, body, files = [] }) => {

@@ -1,0 +1,101 @@
+{
+  "groups": [
+    {
+      "layers": [
+        {
+          "name": "flap",
+          "image-name": "flap.svg",
+          "glass": false,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "fill-specializations": [
+            {
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.33725,0.33725,0.33725,1.00000",
+                  "srgb:0.21176,0.21176,0.21176,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.95478,0.95478,0.95478,1.00000",
+                  "srgb:0.79945,0.79945,0.79945,1.00000"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "body",
+          "image-name": "body.svg",
+          "glass": false,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "fill-specializations": [
+            {
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.28235,0.28235,0.28235,1.00000",
+                  "srgb:0.14118,0.14118,0.14118,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "srgb:0.85784,0.85784,0.85784,1.00000",
+                  "srgb:0.68482,0.68482,0.68482,1.00000"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.9
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:1.00000,1.00000,1.00000,1.00000",
+          "srgb:0.90980,0.90980,0.90980,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "srgb:0.25599,0.25599,0.25599,1.00000",
+          "srgb:0.06935,0.06935,0.06935,1.00000"
+        ]
+      }
+    }
+  ]
+}

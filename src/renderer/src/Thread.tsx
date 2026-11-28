@@ -1,5 +1,4 @@
 import { useMutation, usePaginatedQuery } from "convex/react";
-import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex-helpers/react/cache";
 import { Button } from "@ui-sdk/react/button";
 import { usePreference } from "@ui-sdk/react/preferences";
@@ -13,20 +12,21 @@ import {
   useFiles,
   useMark,
   useMe,
+  useEdit,
   useNames,
+  useRemoveMessage,
   useSend,
   type Attached,
   type Id,
+  type Message,
 } from "./data";
 import { Face } from "./Face";
-import { ContextMenu } from "./Menu";
+import { ContextMenu, type MenuEntry } from "./Menu";
 import { FileLabel, MessageBox } from "./MessageBox";
 import { editDraft, go, previews, removeDraft, useUI, type Draft } from "./state";
 import { ago } from "./time";
 
 const PAGE = 30;
-
-type Message = FunctionReturnType<typeof api.threads.messages>["page"][number];
 
 function Body({ body }: { body: string }) {
   const { name } = useNames();
@@ -63,11 +63,15 @@ function Shot(props: { id: Id<"files"> | Id<"links">; alt: string; style?: CSSPr
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     let made = "";
+    let gone = false;
     void bytes(props.id).then(
-      (loaded) => setUrl((made = URL.createObjectURL(new Blob([loaded])))),
+      (loaded) => gone || setUrl((made = URL.createObjectURL(new Blob([loaded])))),
       () => {},
     );
-    return () => URL.revokeObjectURL(made);
+    return () => {
+      gone = true;
+      URL.revokeObjectURL(made);
+    };
   }, [props.id]);
   return url ? (
     <img className="shot" src={url} alt={props.alt} style={props.style} />
@@ -76,7 +80,8 @@ function Shot(props: { id: Id<"files"> | Id<"links">; alt: string; style?: CSSPr
   );
 }
 
-function Sent({ file, shown }: { file: Message["files"][number]; shown: boolean }) {
+function Sent(props: { file: Message["files"][number]; shown: boolean; entries: MenuEntry[] }) {
+  const { file, shown } = props;
   const { preview, download } = useFiles();
   const { width = 1, height = 1 } = file.thumb ?? {};
   const wide = Math.min(360, width, (240 * width) / height);
@@ -91,6 +96,7 @@ function Sent({ file, shown }: { file: Message["files"][number]; shown: boolean 
         ...(window.desktop ? [{ label: "Preview", run: () => void preview(file) }] : []),
         { label: "Download", run: () => void download(file) },
         { label: "Copy Name", run: () => void navigator.clipboard.writeText(file.name) },
+        ...props.entries,
       ]}
     >
       {shown && (file.thumb || file.snippet) ? (
@@ -147,7 +153,7 @@ export function DraftView({ draft }: { draft: Draft }) {
           key={draft.id}
           label="Draft"
           mustMention
-          placeholder="Write a message, @mention who it's for, ⌘↵ to send"
+          placeholder="Write a message, @mention who it's for"
           defaultText={draft.text}
           onSend={(body, files) => void send(body, files)}
           onChange={(text) => editDraft(draft.id, text)}
@@ -168,6 +174,10 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
   const height = useRef(0);
   const { name, text } = useNames();
   const send = useSend();
+  const edit = useEdit();
+  const removeMessage = useRemoveMessage();
+  const me = useMe();
+  const [editing, setEditing] = useState<Id<"messages">>();
   const mark = useMark();
   const shown = usePreference(previews).value === "on";
   const [reply] = useState(createTokenInputController);
@@ -190,6 +200,16 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
     if (thread && height.current) thread.scrollTop += thread.scrollHeight - height.current;
     height.current = 0;
   }, [results.length]);
+  const mine = (message: Message): MenuEntry[] =>
+    message.authorId === me?._id
+      ? [
+          "separator",
+          ...(message.body ? [{ label: "Edit Message", run: () => setEditing(message._id) }] : []),
+          ...(messages.length > 1 || status === "CanLoadMore"
+            ? [{ label: "Delete Message", run: () => void removeMessage(message._id) }]
+            : []),
+        ]
+      : [];
   const earlier = () => {
     height.current = scroller.current!.scrollHeight;
     loadMore(PAGE);
@@ -213,28 +233,43 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
               </div>
               {turn.map((message) => (
                 <Fragment key={message._id}>
-                  {message.body && (
-                    <ContextMenu
-                      entries={[
-                        {
-                          label: "Copy",
-                          run: () =>
-                            void navigator.clipboard.writeText(
-                              getSelection()?.toString() || text(message.body),
-                            ),
-                        },
-                        { label: "Reply", run: () => reply.focus() },
-                      ]}
-                    >
-                      <p className="text">
-                        <Body body={message.body} />
-                      </p>
-                    </ContextMenu>
+                  {editing === message._id ? (
+                    <MessageBox
+                      label="Edit Message"
+                      placeholder="Edit message"
+                      defaultText={message.body}
+                      onCancel={() => setEditing(undefined)}
+                      onSend={(body) => {
+                        setEditing(undefined);
+                        void edit({ messageId: message._id, body });
+                      }}
+                    />
+                  ) : (
+                    message.body && (
+                      <ContextMenu
+                        entries={[
+                          {
+                            label: "Copy",
+                            run: () =>
+                              void navigator.clipboard.writeText(
+                                getSelection()?.toString() || text(message.body),
+                              ),
+                          },
+                          { label: "Reply", run: () => reply.focus() },
+                          ...mine(message),
+                        ]}
+                      >
+                        <p className="text">
+                          <Body body={message.body} />
+                          {message.editedAt && <small className="edited">(edited)</small>}
+                        </p>
+                      </ContextMenu>
+                    )
                   )}
                   {message.files.length > 0 && (
                     <div className="files">
                       {message.files.map((file) => (
-                        <Sent key={file._id} file={file} shown={shown} />
+                        <Sent key={file._id} file={file} shown={shown} entries={mine(message)} />
                       ))}
                     </div>
                   )}
@@ -262,7 +297,7 @@ export function Thread({ threadId }: { threadId: Id<"threads"> }) {
           key={threadId}
           input={reply}
           label="Reply"
-          placeholder="Reply, @mention someone to bring them in, ⌘↵ to send"
+          placeholder="Reply, @mention someone to bring them in"
           onSend={(body, files) => void send({ threadId, body, files })}
         />
       </article>

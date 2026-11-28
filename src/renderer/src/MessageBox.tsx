@@ -25,7 +25,9 @@ import {
   TriggerMenuList,
   type TriggerMenuDataItem,
 } from "@ui-sdk/react/trigger-menu";
-import { useMemo, useState } from "react";
+import { usePreference } from "@ui-sdk/react/preferences";
+import { useShortcut } from "@ui-sdk/react/shortcuts";
+import { useEffect, useMemo, useState } from "react";
 import {
   FILE_LIMIT,
   mentions,
@@ -40,7 +42,7 @@ import {
 } from "./data";
 import { Icon, type IconName } from "./Icon";
 import { Face } from "./Face";
-import { useUI } from "./state";
+import { sending, useUI } from "./state";
 
 const KINDS: [IconName, string][] = [
   ["image", "png jpg jpeg gif webp heic svg bmp tiff"],
@@ -77,6 +79,7 @@ export function MessageBox(props: {
   modal?: boolean;
   onSend: (body: string, files: Attached[]) => void;
   onChange?: (text: string) => void;
+  onCancel?: () => void;
 }) {
   const me = useMe();
   const people = usePeople();
@@ -86,11 +89,14 @@ export function MessageBox(props: {
   const [own] = useState(createTokenInputController);
   const input = props.input ?? own;
   const dialog = useUI((ui) => ui.dialog);
+  const send = usePreference(sending).value;
+  const key = send === "enter" ? "↵" : "⌘↵";
+  const editing = !!props.onCancel;
   const [files] = useState(createFileInputController);
   const upload = useUpload();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const send = async (body: string) => {
+  const deliver = async (body: string) => {
     setBusy(true);
     setNote("");
     try {
@@ -102,6 +108,13 @@ export function MessageBox(props: {
     }
     setBusy(false);
   };
+  useShortcut(editing ? "escape" : null, () => props.onCancel?.(), {
+    allowInInput: true,
+    description: "Cancel editing",
+  });
+  useEffect(() => {
+    if (editing) input.focus({ at: "end" });
+  }, []);
   const reaches = (body: string) =>
     mentions(body, "person").some((id) => id !== me?._id) ||
     mentions(body, "group").some((id) =>
@@ -134,20 +147,21 @@ export function MessageBox(props: {
   return (
     <FileInput
       multiple
+      disabled={editing}
       maxSize={FILE_LIMIT}
       controller={files}
       onReject={() => setNote(`Files can be up to ${formatFileSize(FILE_LIMIT)}.`)}
     >
       <FileInputDropzone
         className="compose"
-        target={props.modal || !dialog ? "document" : undefined}
+        target={!editing && (props.modal || !dialog) ? "document" : undefined}
         data-busy={busy || undefined}
       >
         <TokenInput
           controller={input}
           codec={codec}
           defaultValue={fromText(props.defaultText ?? "", codec)}
-          submitShortcut="mod+enter"
+          submitShortcut={send}
           onValueChange={(value) => {
             setNote("");
             props.onChange?.(toText(value, codec));
@@ -161,7 +175,7 @@ export function MessageBox(props: {
                   ? "Nobody else is in that group yet. Add people to it in Settings."
                   : "@mention someone to send this to.",
               );
-            void send(body);
+            void deliver(body);
           }}
           renderToken={(token) => (
             <TokenInputToken className="mention">
@@ -173,17 +187,24 @@ export function MessageBox(props: {
           <TokenInputEditor
             className="editor"
             aria-label={props.label}
-            placeholder={props.placeholder}
+            placeholder={`${props.placeholder}, ${key} to ${editing ? "save" : "send"}`}
           />
           <TriggerMenu
             triggers={[
               { char: "@", type: "mention", items: mentionable },
-              {
-                char: "/",
-                boundary: "word",
-                type: "file",
-                items: documents.map((file) => ({ value: `file:${file._id}`, label: file.name })),
-              },
+              ...(editing
+                ? []
+                : [
+                    {
+                      char: "/",
+                      boundary: "word" as const,
+                      type: "file",
+                      items: documents.map((file) => ({
+                        value: `file:${file._id}`,
+                        label: file.name,
+                      })),
+                    },
+                  ]),
             ]}
           >
             <TriggerMenuContent className="panel options" sideOffset={6}>
@@ -204,9 +225,11 @@ export function MessageBox(props: {
             </TriggerMenuContent>
           </TriggerMenu>
         </TokenInput>
-        <FileInputTrigger aria-label="Attach files">
-          <Icon name="attach" />
-        </FileInputTrigger>
+        {!editing && (
+          <FileInputTrigger aria-label="Attach files">
+            <Icon name="attach" />
+          </FileInputTrigger>
+        )}
         <FileInputList aria-label="Attachments" className="files">
           <FileInputItem className="file">
             {({ file }) => (
@@ -223,6 +246,7 @@ export function MessageBox(props: {
           </FileInputItem>
         </FileInputList>
       </FileInputDropzone>
+      {editing && <small className="hint">esc to cancel, {key} to save</small>}
       {note && (
         <p className="alone" role="alert">
           {note}

@@ -49,6 +49,7 @@ export default defineSchema({
     threadId: v.id("threads"),
     authorId: v.id("users"),
     body: v.string(),
+    editedAt: v.optional(v.number()),
   })
     .index("thread", ["threadId"])
     .searchIndex("search", { searchField: "body", filterFields: ["workspaceId"] }),
@@ -89,6 +90,7 @@ export default defineSchema({
     vector: v.array(v.float64()),
   })
     .index("thread", ["threadId"])
+    .index("message", ["messageId"])
     .vectorIndex("near", {
       vectorField: "vector",
       dimensions: 1024,

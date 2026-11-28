@@ -39,7 +39,7 @@ import {
 } from "./data";
 import { Icon } from "./Icon";
 import { Face } from "./Face";
-import { previews, reset, setDialog, switched, theme, useUI } from "./state";
+import { previews, reset, sending, setDialog, switched, theme, useUI } from "./state";
 
 const saveOnLeave = (event: FocusEvent<HTMLFormElement>) => {
   if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.requestSubmit();
@@ -502,6 +502,7 @@ export function Settings() {
   const buckets = useBuckets();
   const { value } = usePreference(theme);
   const shown = usePreference(previews).value;
+  const send = usePreference(sending).value;
   const { signOut } = useAuthActions();
 
   return (
@@ -530,7 +531,7 @@ export function Settings() {
 
           <Section
             title="Appearance"
-            hint={`How Arc looks ${window.desktop ? "on this Mac" : "in this browser"}.`}
+            hint={`How Arc looks and works ${window.desktop ? "on this Mac" : "in this browser"}.`}
           >
             <div className="row">
               <span className="clip">Theme</span>
@@ -554,6 +555,18 @@ export function Settings() {
                 <SegmentedControlIndicator />
                 <SegmentedControlItem value="on">On</SegmentedControlItem>
                 <SegmentedControlItem value="off">Off</SegmentedControlItem>
+              </SegmentedControl>
+            </div>
+            <div className="row">
+              <span className="clip">Send a message with</span>
+              <SegmentedControl
+                aria-label="Send a message with"
+                value={send}
+                onValueChange={(next) => next && sending.set(next as typeof send)}
+              >
+                <SegmentedControlIndicator />
+                <SegmentedControlItem value="enter">↵</SegmentedControlItem>
+                <SegmentedControlItem value="mod+enter">⌘↵</SegmentedControlItem>
               </SegmentedControl>
             </div>
           </Section>

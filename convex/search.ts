@@ -13,7 +13,7 @@ import {
 } from "./_generated/server";
 import { membership, query, titled } from "./functions";
 import { plain } from "./text";
-import { hit, row_, type Row } from "./threads";
+import { drop, hit, row_, type Row } from "./threads";
 
 const NEAR = 0.35;
 
@@ -64,7 +64,11 @@ export const store = internalMutation({
     messageId: v.id("messages"),
     vector: v.array(v.float64()),
   },
-  handler: async (ctx, row) => void (await ctx.db.insert("vectors", row)),
+  handler: async (ctx, row) => {
+    if (!(await ctx.db.get(row.messageId))) return;
+    await drop(ctx, row.messageId, "vectors");
+    await ctx.db.insert("vectors", row);
+  },
 });
 
 export const index = internalAction({
